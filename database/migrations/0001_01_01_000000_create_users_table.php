@@ -13,12 +13,19 @@ return new class extends Migration
     {
         Schema::create('users', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('client_id')->nullable()->after('id')->constrained()->nullOnDelete();
+            $table->boolean('is_active')->default(true)->after('remember_token');
             $table->string('name');
             $table->string('email')->unique();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
             $table->rememberToken();
             $table->timestamps();
+            $table->string('phone')->nullable()->after('email');
+            $table->string('job_title')->nullable()->after('phone');
+            $table->timestamp('last_login_at')->nullable()->after('is_active');
+            $table->string('last_login_ip')->nullable()->after('last_login_at');
+            $table->softDeletes();
         });
 
         Schema::create('password_reset_tokens', function (Blueprint $table) {
@@ -42,6 +49,11 @@ return new class extends Migration
      */
     public function down(): void
     {
+        $table->dropForeign(['client_id']);
+        $table->dropColumn([
+            'client_id', 'is_active', 'phone', 'job_title',
+            'last_login_at', 'last_login_ip', 'deleted_at'
+        ]);
         Schema::dropIfExists('users');
         Schema::dropIfExists('password_reset_tokens');
         Schema::dropIfExists('sessions');
