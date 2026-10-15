@@ -13,7 +13,6 @@ return new class extends Migration
     {
         Schema::create('users', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('client_id')->nullable()->after('id')->constrained()->nullOnDelete();
             $table->boolean('is_active')->default(true)->after('remember_token');
             $table->string('name');
             $table->string('email')->unique();
@@ -49,13 +48,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        $table->dropForeign(['client_id']);
-        $table->dropColumn([
-            'client_id', 'is_active', 'phone', 'job_title',
-            'last_login_at', 'last_login_ip', 'deleted_at'
-        ]);
-        Schema::dropIfExists('users');
-        Schema::dropIfExists('password_reset_tokens');
         Schema::dropIfExists('sessions');
+        Schema::dropIfExists('password_reset_tokens');
+        Schema::dropIfExists('users');
     }
 };
