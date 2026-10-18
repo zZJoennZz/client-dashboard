@@ -1,6 +1,6 @@
 
 import { useMemo, useState } from "react";
-import { Card, EmptyState, PageHeading } from "../components";
+import { Card, EmptyState, PageHeading } from "../components/UI";
 
 export default function Resources({ resources = [] }) {
     const [search, setSearch] = useState("");
