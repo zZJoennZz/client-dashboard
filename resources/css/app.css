@@ -3,9 +3,61 @@
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
 @source '../**/*.blade.php';
-@source '../**/*.js';
+@source '../**/*.{js,jsx,ts,tsx}';
+
+@layer base {
+    :root {
+        --rr-primary: #1E3A5F;
+        --rr-primary-light: #2D5A8C;
+        --rr-accent: #2E7D5B;
+        --rr-accent-light: #E8F5EE;
+        --rr-highlight: #D97706;
+        --rr-highlight-hover: #B45309;
+        --rr-neutral-dark: #1F2937;
+        --rr-neutral-mid: #6B7280;
+        --rr-neutral-light: #F3F4F6;
+        --rr-surface: #FFFFFF;
+        --rr-background: #F9FAFB;
+        --rr-border: #E5E7EB;
+        --rr-error: #DC2626;
+        --rr-warning: #F59E0B;
+        --rr-success: #16A34A;
+    }
+}
+
+@theme inline {
+    --color-primary: var(--rr-primary);
+    --color-primary-light: var(--rr-primary-light);
+    --color-accent: var(--rr-accent);
+    --color-accent-light: var(--rr-accent-light);
+    --color-highlight: var(--rr-highlight);
+    --color-highlight-hover: var(--rr-highlight-hover);
+    --color-neutral-dark: var(--rr-neutral-dark);
+    --color-neutral-mid: var(--rr-neutral-mid);
+    --color-neutral-light: var(--rr-neutral-light);
+    --color-surface: var(--rr-surface);
+    --color-background: var(--rr-background);
+    --color-border: var(--rr-border);
+    --color-error: var(--rr-error);
+    --color-warning: var(--rr-warning);
+    --color-success: var(--rr-success);
+}
 
 @theme {
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+    --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-display: 'DM Sans', 'Inter', ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+    body {
+        color: var(--rr-neutral-dark);
+        background-color: var(--rr-background);
+    }
+
+    h1,
+    h2,
+    h3 {
+        font-family: var(--font-display);
+    }
 }

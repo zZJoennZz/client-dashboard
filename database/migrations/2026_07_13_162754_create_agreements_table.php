@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('client_agreements', function (Blueprint $table) {
             $table->id();
             $table->foreignId('client_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('uploaded_by')->constrained('users')->nullOnDelete();
+            $table->foreignId('uploaded_by')->nullable()->constrained('users')->nullOnDelete();
             $table->foreignId('approved_by')->nullable()->constrained('users')->nullOnDelete();
             $table->string('title');
             $table->text('description')->nullable();

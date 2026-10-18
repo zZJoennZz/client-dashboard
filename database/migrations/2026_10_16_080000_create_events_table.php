@@ -15,8 +15,8 @@ return new class extends Migration
             $table->text('description')->nullable();
             $table->string('location')->nullable();
             $table->string('meeting_url')->nullable();
-            $table->timestamp('starts_at');
-            $table->timestamp('ends_at');
+            $table->dateTime('starts_at');
+            $table->dateTime('ends_at');
             $table->string('status')->default('draft');
             $table->boolean('is_published')->default(false);
             $table->unsignedInteger('capacity')->nullable();

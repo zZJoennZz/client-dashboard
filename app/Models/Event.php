@@ -23,6 +23,8 @@ class Event extends Model
         'status',
         'is_published',
         'capacity',
+        'registration_enabled',
+        'registration_deadline',
         'created_by',
     ];
 
@@ -31,6 +33,8 @@ class Event extends Model
         'ends_at' => 'datetime',
         'is_published' => 'boolean',
         'capacity' => 'integer',
+        'registration_enabled' => 'boolean',
+        'registration_deadline' => 'datetime',
     ];
 
     public function business(): BelongsTo

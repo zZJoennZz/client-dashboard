@@ -5,15 +5,19 @@ namespace App\Models;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable
 {
+    public const ACCOUNT_TYPE_REGULAR = 'regular';
+
+    public const ACCOUNT_TYPE_SUPER_ADMIN = 'super_admin';
+
     /** @use HasFactory<UserFactory> */
     use HasFactory, HasRoles, Notifiable;
 
@@ -23,12 +27,8 @@ class User extends Authenticatable
      * @var list<string>
      */
     protected $fillable = [
-        'name',
         'email',
         'password',
-        'phone',
-        'job_title',
-        'client_id',
         'is_active',
     ];
 
@@ -57,9 +57,14 @@ class User extends Authenticatable
         ];
     }
 
-    public function client(): BelongsTo
+    public function isSuperAdmin(): bool
     {
-        return $this->belongsTo(Client::class, 'client_id');
+        return $this->account_type === self::ACCOUNT_TYPE_SUPER_ADMIN;
+    }
+
+    public function profile(): HasOne
+    {
+        return $this->hasOne(UserProfile::class);
     }
 
     public function businesses(): BelongsToMany

@@ -36,12 +36,14 @@ class Order extends Model
         'order_number',
         'business_id',
         'user_id',
+        'assigned_staff_id',
         'status',
         'payment_status',
         'subtotal',
         'total',
         'currency',
         'notes',
+        'fulfillment_notes',
         'submitted_at',
     ];
 
@@ -113,6 +115,11 @@ class Order extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function assignedStaff(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'assigned_staff_id');
     }
 
     public function items(): HasMany
