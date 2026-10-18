@@ -40,6 +40,11 @@ jobs:
           DB_DATABASE: ":memory:"
         run: php artisan migrate --force
 
+      - name: Build frontend assets
+        run: |
+          npm ci
+          npm run build
+
       - name: Run Laravel tests
         env:
           APP_ENV: testing
@@ -50,8 +55,3 @@ jobs:
           QUEUE_CONNECTION: sync
           MAIL_MAILER: array
         run: php artisan test
-
-      - name: Build frontend assets
-        run: |
-          npm ci
-          npm run build
