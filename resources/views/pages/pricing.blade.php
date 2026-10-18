@@ -31,7 +31,6 @@
                     @endforeach
                 </ul>
                 <a href="{{ route('register') }}" class="mt-9 flex min-h-11 w-full items-center justify-center rounded-lg bg-[var(--rr-highlight)] px-6 py-3.5 text-sm font-bold text-white transition hover:bg-[var(--rr-highlight-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--rr-highlight)]">Join now <span class="ml-2" aria-hidden="true">→</span></a>
-                <p class="mt-4 text-center text-xs leading-5 text-[var(--rr-neutral-mid)]">Get in touch to learn more. No payment is collected on this site.</p>
             </div>
         </article>
         <p class="mx-auto mt-10 max-w-xl text-center text-sm leading-6 text-[var(--rr-neutral-mid)]">Questions about membership? <a href="{{ route('contact') }}" class="font-semibold text-[var(--rr-primary)] underline decoration-[var(--rr-highlight)] underline-offset-4 hover:text-[var(--rr-highlight)]">We'd love to hear from you.</a></p>
