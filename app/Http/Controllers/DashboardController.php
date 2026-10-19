@@ -144,7 +144,12 @@ class DashboardController extends Controller
         );
         $membership = $business?->memberships->first();
         $activity = MemberActivity::query()
+            ->with('business')
             ->where('user_id', $user->id)
+            ->where(function (Builder $query) use ($businessIds): void {
+                $query->whereNull('business_id')
+                    ->orWhereIn('business_id', $businessIds);
+            })
             ->latest()
             ->limit(20)
             ->get()
@@ -152,6 +157,7 @@ class DashboardController extends Controller
                 'id' => $item->id,
                 'type' => $item->activity_type,
                 'subject' => $item->subject_label,
+                'business_name' => $item->business?->company_name,
                 'created_at' => $item->created_at,
             ]);
         $participationQuery = EventRegistration::query()
@@ -174,14 +180,16 @@ class DashboardController extends Controller
             ]);
         $engagementRegistrations = EventRegistration::query()
             ->where('user_id', $user->id)
-            ->whereHas('event', fn (Builder $query) => $query->whereIn('business_id', $businessIds));
+            ->whereHas('event', fn (Builder $query) => $query
+                ->whereIn('business_id', $businessIds));
+
         $attendanceHistory = MemberActivity::query()
             ->where('user_id', $user->id)
             ->where('activity_type', 'event_attended')
             ->whereIn('business_id', $businessIds)
             ->latest()
             ->limit(30)
-            ->get(['id', 'event_id', 'subject_label', 'created_at'])
+            ->get(['id', 'event_id', 'business_id', 'subject_label', 'created_at'])
             ->map(fn (MemberActivity $item): array => [
                 'id' => $item->id,
                 'event_id' => $item->event_id,
@@ -220,15 +228,18 @@ class DashboardController extends Controller
             'engagement' => [
                 'rsvps_30_days' => MemberActivity::query()
                     ->where('user_id', $user->id)
-                    ->where('activity_type', 'event_rsvp')
-                    ->where('created_at', '>=', now()->subDays(30))
+                    ->whereIn('business_id', $businessIds)
+                    ->whereIn('activity_type', ['event_rsvp', 'event_registered'])
+                    ->where('created_at', '>=', now()->subDays(30)->startOfDay())
                     ->count(),
+
                 'upcoming_registered' => (clone $engagementRegistrations)
                     ->whereIn('status', ['registered', 'confirmed'])
-                    ->whereHas('event', fn (Builder $query) => $query->where('starts_at', '>=', now()))
+                    ->whereHas('event', fn (Builder $query) => $query
+                        ->where('starts_at', '>=', now()))
                     ->count(),
+
                 'recorded_attendance' => (clone $engagementRegistrations)
-                    ->where('status', 'attended')
                     ->whereNotNull('attended_at')
                     ->count(),
             ],
