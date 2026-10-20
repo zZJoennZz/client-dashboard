@@ -112,32 +112,43 @@ class DashboardController extends Controller
             })
             ->orderByDesc('is_featured')
             ->latest('published_at')
-            ->get(['id', 'business_id', 'title', 'description', 'resource_type', 'file_name', 'is_featured', 'published_at', 'status', 'visibility', 'file_path'])
-            ->map(function (Resource $resource) use ($businessNames, $isSuperAdmin): array {
+            ->get(['id', 'business_id', 'title', 'description', 'content', 'resource_type', 'category', 'resource_group', 'tags', 'estimated_minutes', 'video_embed_url', 'file_name', 'is_featured', 'requires_acknowledgment', 'version', 'published_at', 'status', 'visibility', 'file_path', 'file_url'])
+            ->map(function (Resource $resource) use ($businessNames, $isSuperAdmin, $businessIds): array {
                 $record = $resource->toArray();
                 unset($record['file_path']);
                 $record['download_url'] = $resource->file_path
                     ? route($isSuperAdmin ? 'super-admin.resources.download' : 'dashboard.files.resources', $resource)
                     : null;
+                $acknowledgment = $resource->requires_acknowledgment && ! $isSuperAdmin
+                    ? $resource->acknowledgments()->whereIn('business_id', $businessIds)
+                        ->where('version', $resource->version)->latest('acknowledged_at')->first()
+                    : null;
+                $record['acknowledged_at'] = $acknowledgment?->acknowledged_at;
+                $record['acknowledgment_required'] = (bool) $resource->requires_acknowledgment;
 
                 return $this->withBusinessName($record, $businessNames);
             });
 
         $marketingQuery = MarketingActivity::query()
-            ->whereIn('business_id', $businessIds)
-            ->orderByDesc('scheduled_at');
+            ->where(function (Builder $query) use ($businessIds): void {
+                $query->whereIn('business_id', $businessIds)->orWhere('scope', 'program');
+            })
+            ->orderByRaw('scheduled_at IS NULL')
+            ->orderBy('scheduled_at');
         if (! $isSuperAdmin) {
-            $marketingQuery->whereIn('status', ['scheduled', 'completed']);
+            $marketingQuery->whereIn('status', ['planned', 'scheduled', 'completed']);
         }
         $marketing = $marketingQuery
-            ->get(['id', 'business_id', 'title', 'description', 'member_description', 'promotion_type', 'platform', 'published_url', 'scheduled_at', 'completed_at', 'status'])
+            ->get(['id', 'business_id', 'scope', 'title', 'description', 'member_description', 'promotion_type', 'platform', 'published_url', 'scheduled_at', 'completed_at', 'status'])
             ->map(function (MarketingActivity $activity) use ($businessNames, $isSuperAdmin): array {
                 $record = $isSuperAdmin
                     ? $activity->toArray()
-                    : $activity->only(['id', 'business_id', 'title', 'member_description', 'promotion_type', 'platform', 'published_url', 'scheduled_at', 'completed_at', 'status']);
+                    : $activity->only(['id', 'business_id', 'scope', 'title', 'member_description', 'promotion_type', 'platform', 'published_url', 'scheduled_at', 'completed_at', 'status']);
 
                 return $this->withBusinessName($record, $businessNames);
             });
+            $highlights = $marketing->where('scope', 'business')->values();
+            $programActivities = $marketing->where('scope', 'program')->values();
 
         $businessData = $businesses->map(
             fn (Business $item): array => $this->businessData($item, $isSuperAdmin)
@@ -222,6 +233,8 @@ class DashboardController extends Controller
             'events' => $events,
             'resources' => $resources,
             'marketing' => $marketing,
+            'highlights' => $highlights,
+            'program_activities' => $programActivities,
             'activity' => $activity,
             'participation' => $participation,
             'attendance_history' => $attendanceHistory,

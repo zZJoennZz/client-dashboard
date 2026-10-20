@@ -7,7 +7,10 @@ const secondary = 'min-h-10 rounded-lg border border-[var(--rr-border)] px-3 tex
 const schemas = {
     content: [
         ['title', 'Title', 'text', true], ['description', 'Description', 'textarea'],
-        ['business_id', 'Business ID (optional; see Member businesses)', 'number'], ['resource_type', 'Resource type', 'text', true],
+        ['business_id', 'Business ID (optional; see Member businesses)', 'number'], ['resource_group', 'Resource group', 'select', true, ['general', 'guideline', 'how_to']],
+        ['resource_type', 'Resource type', 'select', true, ['article', 'pdf', 'video', 'link']], ['category', 'Category', 'text'], ['tags', 'Category tags (comma separated)', 'text'],
+        ['content', 'Article / document text', 'textarea'], ['file_url', 'External resource URL', 'url'], ['video_embed_url', 'Video embed URL', 'url'],
+        ['estimated_minutes', 'Estimated minutes', 'number'], ['requires_acknowledgment', 'Requires business acknowledgment', 'checkbox'],
         ['status', 'Status', 'select', true, ['draft', 'published']],
         ['visibility', 'Visibility', 'select', true, ['private', 'member', 'public']],
         ['is_featured', 'Featured', 'checkbox'], ['file', 'Attachment (PDF, office, CSV, image; max 20MB)', 'file'],
@@ -29,7 +32,7 @@ const schemas = {
         ['is_published', 'Published', 'checkbox'],
     ],
     marketing: [
-        ['title', 'Activity title', 'text', true], ['business_id', 'Business ID (see Member businesses)', 'number', true],
+        ['title', 'Activity title', 'text', true], ['scope', 'Activity scope', 'select', true, ['business', 'program']], ['business_id', 'Business ID (optional for program activities)', 'number'],
         ['promotion_type', 'Promotion type', 'text', true], ['platform', 'Platform', 'text'],
         ['scheduled_at', 'Scheduled at', 'datetime-local'], ['status', 'Status', 'select', true, ['planned', 'scheduled', 'completed', 'cancelled']],
         ['responsible_admin_id', 'Assigned provider staff ID', 'number'], ['caption', 'Content / caption', 'textarea'],
@@ -135,11 +138,12 @@ export default function AdminWorkflows({ section, workspaceUrl, urls, exportUrl 
         const values = {};
         for (const [key, , type] of schema) {
             const value = row[key] ?? '';
-            values[key] = type === 'datetime-local' && value ? String(value).slice(0, 16).replace(' ', 'T') : value;
+            values[key] = type === 'datetime-local' && value ? String(value).slice(0, 16).replace(' ', 'T') : key === 'tags' && Array.isArray(value) ? value.join(', ') : value;
         }
         if (schema.some(([key]) => key === 'registration_enabled')) values.registration_enabled = Boolean(row.registration_enabled);
         if (schema.some(([key]) => key === 'is_published')) values.is_published = Boolean(row.is_published);
         if (schema.some(([key]) => key === 'is_featured')) values.is_featured = Boolean(row.is_featured ?? row.featured);
+        if (schema.some(([key]) => key === 'requires_acknowledgment')) values.requires_acknowledgment = Boolean(row.requires_acknowledgment);
         setRecord(values);
         window.scrollTo({ top: 0, behavior: 'smooth' });
     }
@@ -160,6 +164,7 @@ export default function AdminWorkflows({ section, workspaceUrl, urls, exportUrl 
             payload.set('status', form.get('status') || 'draft');
             payload.set('visibility', form.get('visibility') || 'private');
             if (section === 'content' && !form.has('is_featured')) payload.set('is_featured', '0');
+            if (section === 'content' && !form.has('requires_acknowledgment')) payload.set('requires_acknowledgment', '0');
             if (editingId) payload.append('_method', 'PUT');
         } else {
             payload = Object.fromEntries(form.entries());
@@ -333,18 +338,10 @@ export default function AdminWorkflows({ section, workspaceUrl, urls, exportUrl 
                     {marketing && <button type="button" className={secondary} onClick={() => setCalendarMode((current) => !current)}>{calendarMode ? 'List view' : 'Calendar view'}</button>}
                     {exportType(section) && <button type="button" className={secondary} onClick={() => exportCsv(exportType(section))}>Export CSV</button>}
                 </div>
-                {marketing && calendarMode && dataRows(data).length > 0 ? <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                    {Object.entries(dataRows(data).reduce((groups, row) => {
-                        const day = row.scheduled_at ? new Date(row.scheduled_at).toLocaleDateString() : 'Unscheduled';
-                        groups[day] = [...(groups[day] ?? []), row];
-                        return groups;
-                    }, {})).map(([day, rows]) => <section key={day} className="rounded-lg border border-[var(--rr-border)] bg-[var(--rr-background)] p-3">
-                        <h3 className="mb-2 text-sm font-semibold">{day}</h3>{rows.map((row) => <p key={row.id} className="border-t border-[var(--rr-border)] py-2 text-xs">{row.title} · {row.status}</p>)}
-                    </section>)}
-                </div> : dataRows(data).length === 0 ? <p className="rounded-lg bg-[var(--rr-background)] p-6 text-sm text-[var(--rr-neutral-mid)]">No records match these filters.</p> : <div className="space-y-3">
+                {marketing && calendarMode ? <MarketingCalendar rows={dataRows(data)} /> : dataRows(data).length === 0 ? <p className="rounded-lg bg-[var(--rr-background)] p-6 text-sm text-[var(--rr-neutral-mid)]">No records match these filters.</p> : <div className="space-y-3">
                     {dataRows(data).map((row) => <article key={row.id} className="rounded-lg border border-[var(--rr-border)] p-4">
                         <div className="flex flex-wrap items-start justify-between gap-3">
-                            <div><h3 className="font-semibold">{row.title || row.name || row.subject || row.order_number || row.business_name || `Record #${row.id}`}</h3><p className="mt-1 text-xs text-[var(--rr-neutral-mid)]">{row.business_name || row.plan || row.service_name || ''} {row.status ? ` · ${row.status}` : ''}{row.deleted ? ' · Archived' : ''}</p><p className="mt-1 text-xs text-[var(--rr-neutral-mid)]">{row.file_name || row.scheduled_at || row.starts_at || row.end_date || ''}</p>{communications && <p className="mt-2 text-xs text-[var(--rr-neutral-mid)]">Recipients: {row.recipient_count} · Delivered: {row.delivered_count} · Failed: {row.failed_count}{row.failed_recipients?.length ? ` (${row.failed_recipients.join(', ')})` : ''}</p>}</div>
+                            <div><h3 className="font-semibold">{row.title || row.name || row.subject || row.order_number || row.business_name || `Record #${row.id}`}</h3><p className="mt-1 text-xs text-[var(--rr-neutral-mid)]">{row.scope === 'program' ? 'Program-wide' : row.business_name || row.plan || row.service_name || ''} {row.status ? ` · ${row.status}` : ''}{row.deleted ? ' · Archived' : ''}</p><p className="mt-1 text-xs text-[var(--rr-neutral-mid)]">{row.file_name || row.scheduled_at || row.starts_at || row.end_date || ''}</p>{section === 'content' && <p className="mt-2 text-xs text-[var(--rr-neutral-mid)]">Version {row.version} · {row.view_count} views · {row.acknowledgments?.length ?? 0} business acknowledgments</p>}{communications && <p className="mt-2 text-xs text-[var(--rr-neutral-mid)]">Recipients: {row.recipient_count} · Delivered: {row.delivered_count} · Failed: {row.failed_count}{row.failed_recipients?.length ? ` (${row.failed_recipients.join(', ')})` : ''}</p>}</div>
                             <Actions section={section} row={row} urls={urls} action={action} startEdit={startEdit} showMembershipDetails={showMembershipDetails} startAnnouncementEdit={(item) => {
                                 setEditingId(item.id);
                                 setRecord({ subject: item.subject, body: item.body, audience: item.audience ?? {} });
@@ -360,6 +357,8 @@ export default function AdminWorkflows({ section, workspaceUrl, urls, exportUrl 
                             {row.payment_is_simulated && <p className="text-xs text-amber-700 sm:col-span-4">Simulated registration payment placeholder — not a verified financial transaction.</p>}
                         </form>}
                         {orders && <OrderEditor row={row} url={urls.orders} action={action} />}
+                        {section === 'content' && row.acknowledgments?.length > 0 && <div className="mt-3 border-t border-[var(--rr-border)] pt-3 text-xs"><p className="font-semibold">Business acknowledgments</p>{row.acknowledgments.map((ack) => <p key={`${ack.business_id}-${ack.version}`} className="mt-1 text-[var(--rr-neutral-mid)]">{ack.business_name} · version {ack.version} · {new Date(ack.acknowledged_at).toLocaleString()}</p>)}</div>}
+                        {section === 'content' && row.versions?.length > 1 && <div className="mt-3 border-t border-[var(--rr-border)] pt-3 text-xs"><p className="font-semibold">Version history</p>{row.versions.map((version) => <p key={version.id} className="mt-1 text-[var(--rr-neutral-mid)]">Version {version.version} · {new Date(version.created_at).toLocaleString()} {version.download_url && <a className="font-semibold text-[var(--rr-primary)] underline" href={version.download_url}>Download {version.file_name || 'file'}</a>}</p>)}</div>}
                     </article>)}
                 </div>}
                 {data?.meta?.last_page > 1 && <div className="mt-4 flex justify-between"><button className={secondary} disabled={filters.page <= 1} onClick={() => setFilters((current) => ({ ...current, page: current.page - 1 }))}>Previous</button><span className="self-center text-xs">Page {filters.page} of {data.meta.last_page}</span><button className={secondary} disabled={filters.page >= data.meta.last_page} onClick={() => setFilters((current) => ({ ...current, page: current.page + 1 }))}>Next</button></div>}
@@ -376,7 +375,7 @@ export default function AdminWorkflows({ section, workspaceUrl, urls, exportUrl 
 }
 
 function Field({ name, label, type = 'text', required = false, options = [], value, onChange }) {
-    const common = { name, required, className: `${input} mt-1`, defaultValue: value ?? '' };
+    const common = { name, required, className: `${input} mt-1`, defaultValue: value ?? (name === 'scope' ? 'business' : '') };
     return <label className={`block text-xs font-semibold ${type === 'textarea' ? 'sm:col-span-2' : ''}`}>{label}
         {type === 'textarea' ? <textarea {...common} rows="3" /> :
             type === 'select' ? <select {...common}>{options.map((option) => <option key={option}>{option}</option>)}</select> :
@@ -392,7 +391,7 @@ function Actions({ section, row, urls, action, startEdit, startAnnouncementEdit,
         {section === 'content' && <>{row.file_name && <a className={`${secondary} inline-flex items-center`} href={`${urls.resources}/${row.id}/download`}>Download</a>}<button className={secondary} onClick={() => action(`${urls.resources}/${row.id}`, 'DELETE')}>Archive</button></>}
         {section === 'reports' && <>{row.file_name && <a className={`${secondary} inline-flex items-center`} href={`${urls.reports}/${row.id}/download`}>Download</a>}<button className={secondary} onClick={() => action(`${urls.reports}/${row.id}`, 'DELETE')}>Archive</button></>}
         {section === 'events' && <><button className={secondary} onClick={() => action(`${urls.events}/${row.id}/status`, 'PATCH', { status: row.status === 'published' ? 'draft' : 'published' })}>{row.status === 'published' ? 'Unpublish' : 'Publish'}</button><button className={secondary} onClick={() => action(`${urls.events}/${row.id}/status`, 'PATCH', { status: 'cancelled' })}>Cancel</button><button className={secondary} onClick={() => showRegistrants(row)}>Registrants</button></>}
-        {section === 'marketing' && <p className="w-full text-xs text-[var(--rr-neutral-mid)]">Posting is manual; no social network publishing is connected.</p>}
+        {section === 'marketing' && <><button className={secondary} onClick={() => action(`${urls.marketing}/${row.id}/duplicate`, 'POST')}>Duplicate</button><button className={secondary} onClick={() => action(`${urls.marketing}/${row.id}/status`, 'PATCH', { status: 'cancelled' })}>Cancel activity</button><button className={secondary} onClick={() => action(`${urls.marketing}/${row.id}`, 'DELETE')}>Archive</button><p className="w-full text-xs text-[var(--rr-neutral-mid)]">Posting is manual; no social network publishing is connected.</p></>}
         {section === 'services' && null}
         {section === 'communications' && <>{row.status === 'draft' && <button className={secondary} onClick={() => startAnnouncementEdit(row)}>Edit draft</button>}{['draft', 'failed'].includes(row.status) && <button className={secondary} onClick={() => window.confirm('Send this announcement to eligible, opted-in members? This cannot be undone.') && action(`${urls.announcements}/${row.id}/send`, 'POST')}>{row.status === 'failed' ? 'Retry failed deliveries' : 'Approve and send'}</button>}</>}
         {section === 'memberships' && <button className={secondary} onClick={() => exportCsv('memberships', { business_id: row.business_id })}>Export memberships</button>}
@@ -451,4 +450,15 @@ function explanation(section) {
 
 function Panel({ title, children }) {
     return <section className="rounded-xl border border-[var(--rr-border)] bg-white p-5 shadow-sm sm:p-6"><h2 className="mb-4 text-lg font-semibold">{title}</h2>{children}</section>;
+}
+
+function MarketingCalendar({ rows }) {
+    const [month, setMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+    const first = new Date(month.getFullYear(), month.getMonth(), 1 - month.getDay());
+    const days = Array.from({ length: 42 }, (_, index) => {
+        const date = new Date(first.getFullYear(), first.getMonth(), first.getDate() + index);
+        return { date, activities: rows.filter((row) => row.scheduled_at && new Date(row.scheduled_at).toDateString() === date.toDateString()) };
+    });
+
+    return <div><div className="mb-3 flex items-center justify-between"><button className={secondary} aria-label="Previous month" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}>Previous</button><h3 className="text-sm font-semibold">{month.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</h3><button className={secondary} aria-label="Next month" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}>Next</button></div><div className="grid grid-cols-7 border-l border-t border-[var(--rr-border)] text-center text-[10px] font-semibold">{['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => <div key={day} className="border-b border-r border-[var(--rr-border)] py-2">{day}</div>)}</div><div className="grid grid-cols-7 border-l border-[var(--rr-border)]">{days.map(({ date, activities }) => <div key={date.toISOString()} className={`min-h-20 border-b border-r border-[var(--rr-border)] p-1.5 ${date.getMonth() === month.getMonth() ? 'bg-white' : 'bg-[var(--rr-background)]'}`}><span className="text-xs">{date.getDate()}</span>{activities.slice(0, 2).map((row) => <p key={row.id} className="mt-1 truncate rounded bg-[var(--rr-accent-light)] px-1 py-0.5 text-[9px]" title={`${row.title} · ${row.status}`}>{row.title} · {row.status}</p>)}{activities.length > 2 && <span className="text-[9px]">+{activities.length - 2} more</span>}</div>)}</div></div>;
 }

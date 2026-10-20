@@ -13,6 +13,7 @@ class MarketingActivity extends Model
 
     protected $fillable = [
         'business_id',
+        'scope',
         'title',
         'description',
         'promotion_type',

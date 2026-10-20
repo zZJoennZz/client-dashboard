@@ -7,6 +7,7 @@ import Reports from './pages/Reports';
 import Events from './pages/Events';
 import Resources from './pages/Resources';
 import Marketing from './pages/Marketing';
+import Guidelines from './pages/Guidelines';
 import Settings from './pages/Settings';
 
 const pages = {
@@ -15,8 +16,9 @@ const pages = {
     membership: { title: 'Membership', component: Membership },
     reports: { title: 'Reports', component: Reports },
     events: { title: 'Events', component: Events },
-    resources: { title: 'Resources', component: Resources },
-    marketing: { title: 'Marketing tools', component: Marketing },
+    resources: { title: 'How-To Library', component: Resources },
+    guidelines: { title: 'Guidelines', component: Guidelines },
+    marketing: { title: 'Marketing schedule', component: Marketing },
     settings: { title: 'Settings', component: Settings },
 };
 

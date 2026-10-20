@@ -15,13 +15,21 @@ class Resource extends Model
         'business_id',
         'title',
         'description',
+        'content',
         'resource_type',
+        'category',
+        'resource_group',
+        'tags',
         'file_name',
         'file_path',
         'file_url',
+        'video_embed_url',
+        'estimated_minutes',
         'status',
         'visibility',
         'is_featured',
+        'requires_acknowledgment',
+        'version',
         'created_by',
         'published_at',
     ];
@@ -29,6 +37,10 @@ class Resource extends Model
     protected $casts = [
         'is_featured' => 'boolean',
         'published_at' => 'datetime',
+        'tags' => 'array',
+        'requires_acknowledgment' => 'boolean',
+        'estimated_minutes' => 'integer',
+        'version' => 'integer',
     ];
 
     public function business(): BelongsTo
@@ -39,5 +51,15 @@ class Resource extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function versions(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(ResourceVersion::class)->orderByDesc('version');
+    }
+
+    public function acknowledgments(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(ResourceAcknowledgment::class);
     }
 }

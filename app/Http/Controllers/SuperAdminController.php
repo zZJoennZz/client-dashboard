@@ -475,13 +475,39 @@ class SuperAdminController extends Controller
                     'business_id' => $resource->business_id,
                     'title' => $resource->title,
                     'description' => $resource->description,
+                    'content' => $resource->content,
                     'business_name' => $resource->business?->company_name ?? 'Shared resource',
                     'resource_type' => $resource->resource_type,
+                    'category' => $resource->category,
+                    'resource_group' => $resource->resource_group,
+                    'tags' => $resource->tags ?? [],
                     'status' => $resource->status,
                     'visibility' => $resource->visibility,
                     'is_featured' => $resource->is_featured,
+                    'requires_acknowledgment' => $resource->requires_acknowledgment,
+                    'version' => $resource->version,
                     'file_name' => $resource->file_name,
                     'published_at' => $resource->published_at?->toDateString(),
+                    'view_count' => \App\Models\MemberActivity::query()
+                        ->where('activity_type', 'resource_viewed')
+                        ->where('subject_type', 'resource')
+                        ->where('subject_id', $resource->id)
+                        ->count(),
+                    'versions' => $resource->versions->map(fn ($version): array => [
+                        'id' => $version->id,
+                        'version' => $version->version,
+                        'created_at' => $version->created_at?->toDateTimeString(),
+                        'file_name' => data_get($version->snapshot, 'file_name'),
+                        'download_url' => data_get($version->snapshot, 'file_path')
+                            ? route('super-admin.resources.versions.download', [$resource, $version])
+                            : null,
+                    ])->values(),
+                    'acknowledgments' => $resource->acknowledgments()->with('business')->get()->map(fn ($acknowledgment): array => [
+                        'business_id' => $acknowledgment->business_id,
+                        'business_name' => $acknowledgment->business?->company_name ?? 'Deleted business',
+                        'version' => $acknowledgment->version,
+                        'acknowledged_at' => $acknowledgment->acknowledged_at?->toDateTimeString(),
+                    ])->values(),
                 ];
                 break;
 
@@ -532,6 +558,8 @@ class SuperAdminController extends Controller
                 $query = MarketingActivity::query()->with(['business', 'responsibleAdmin.profile'])->latest('scheduled_at');
                 $mapper = fn (MarketingActivity $activity): array => [
                     'id' => $activity->id,
+                    'business_id' => $activity->business_id,
+                    'scope' => $activity->scope,
                     'title' => $activity->title,
                     'business_name' => $activity->business?->company_name ?? 'Deleted business',
                     'status' => $activity->status,

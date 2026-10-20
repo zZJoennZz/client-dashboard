@@ -6,8 +6,9 @@ export const navigation = [
     { key: 'membership', label: 'Membership', icon: '◇', href: '/dashboard/membership' },
     { key: 'reports', label: 'Reports', icon: '▧', href: '/dashboard/reports' },
     { key: 'events', label: 'Events', icon: '▦', href: '/dashboard/events' },
-    { key: 'resources', label: 'Resources', icon: '▱', href: '/dashboard/resources' },
-    { key: 'marketing', label: 'Marketing tools', icon: '✳', href: '/dashboard/marketing' },
+    { key: 'resources', label: 'How-To Library', icon: '▱', href: '/dashboard/resources' },
+    { key: 'guidelines', label: 'Guidelines', icon: '▤', href: '/dashboard/guidelines' },
+    { key: 'marketing', label: 'Marketing schedule', icon: '✳', href: '/dashboard/marketing' },
     { key: 'settings', label: 'Settings', icon: '⚙', href: '/dashboard/settings' },
 ];
 

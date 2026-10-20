@@ -8,6 +8,7 @@ use App\Http\Controllers\MemberBusinessProfileController;
 use App\Http\Controllers\MemberEventController;
 use App\Http\Controllers\MemberActivityController;
 use App\Http\Controllers\MemberFileController;
+use App\Http\Controllers\MemberResourceController;
 use App\Http\Controllers\PublicPageController;
 use App\Http\Controllers\SuperAdminController;
 use App\Http\Controllers\SuperAdminBusinessController;
@@ -50,6 +51,8 @@ Route::middleware('auth')->group(function (): void {
         ->name('dashboard.activity.reports.viewed');
     Route::post('/dashboard/activity/resources/{resource}/viewed', [MemberActivityController::class, 'resourceViewed'])
         ->name('dashboard.activity.resources.viewed');
+    Route::post('/dashboard/resources/{resource}/acknowledge', [MemberResourceController::class, 'acknowledge'])
+        ->name('dashboard.resources.acknowledge');
     Route::get('/dashboard/files/resources/{resource}', [MemberFileController::class, 'resource'])
         ->name('dashboard.files.resources');
     Route::get('/dashboard/files/reports/{report}', [MemberFileController::class, 'report'])
@@ -87,6 +90,7 @@ Route::middleware(['auth', 'can:super-admin'])
         Route::put('/api/resources/{resource}', [SuperAdminContentController::class, 'updateResource'])->name('resources.update');
         Route::delete('/api/resources/{resource}', [SuperAdminContentController::class, 'archiveResource'])->name('resources.archive');
         Route::get('/api/resources/{resource}/download', [SuperAdminContentController::class, 'downloadResource'])->name('resources.download');
+        Route::get('/api/resources/{resource}/versions/{version}/download', [SuperAdminContentController::class, 'downloadResourceVersion'])->name('resources.versions.download');
         Route::post('/api/reports', [SuperAdminContentController::class, 'storeReport'])->name('reports.store');
         Route::put('/api/reports/{report}', [SuperAdminContentController::class, 'updateReport'])->name('reports.update');
         Route::delete('/api/reports/{report}', [SuperAdminContentController::class, 'archiveReport'])->name('reports.archive');
@@ -98,6 +102,9 @@ Route::middleware(['auth', 'can:super-admin'])
         Route::patch('/api/event-registrations/{registration}', [SuperAdminEventController::class, 'updateRegistration'])->name('event-registrations.update');
         Route::post('/api/marketing', [SuperAdminMarketingController::class, 'store'])->name('marketing.store');
         Route::put('/api/marketing/{activity}', [SuperAdminMarketingController::class, 'update'])->name('marketing.update');
+        Route::post('/api/marketing/{activity}/duplicate', [SuperAdminMarketingController::class, 'duplicate'])->name('marketing.duplicate');
+        Route::patch('/api/marketing/{activity}/status', [SuperAdminMarketingController::class, 'setStatus'])->name('marketing.status');
+        Route::delete('/api/marketing/{activity}', [SuperAdminMarketingController::class, 'archive'])->name('marketing.archive');
         Route::post('/api/services', [SuperAdminOrderServiceController::class, 'storeService'])->name('services.store');
         Route::put('/api/services/{service}', [SuperAdminOrderServiceController::class, 'updateService'])->name('services.update');
         Route::patch('/api/orders/{order}/fulfillment', [SuperAdminOrderServiceController::class, 'updateOrder'])->name('orders.fulfillment');
