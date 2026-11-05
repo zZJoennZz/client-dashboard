@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('title', 'Local business directory')
-@section('description', 'Find independent businesses, makers, and community favorites across the Roanoke Valley.')
+@section('description', 'Find independent businesses, makers, and community favorites in Argyle.')
 @section('canonical', route('businesses.index'))
 
 @section('content')
@@ -9,7 +9,7 @@
         <div class="mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-20">
             <p class="text-xs font-bold uppercase tracking-[0.18em] text-[var(--rr-highlight)]">Shop close to home</p>
             <h1 class="mt-4 text-5xl font-semibold tracking-[-0.05em] sm:text-6xl">Find your <span class="font-serif font-normal italic text-[var(--rr-accent)]">local.</span></h1>
-            <p class="mt-5 max-w-2xl text-lg leading-8 text-[var(--rr-neutral-mid)]">Meet the independent businesses, neighborhood favorites, and creative people making Roanoke feel like Roanoke.</p>
+            <p class="mt-5 max-w-2xl text-lg leading-8 text-[var(--rr-neutral-mid)]">Meet the independent businesses, neighborhood favorites, and creative people making Argyle feel like home.</p>
         </div>
     </section>
     <section class="mx-auto max-w-7xl px-5 py-14 sm:px-8 sm:py-20">

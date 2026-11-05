@@ -126,6 +126,6 @@
                 </aside>
             </div>
         </article>
-        <p class="mt-10 rounded-2xl bg-[var(--rr-neutral-light)] p-6 text-sm leading-6 text-[var(--rr-neutral-mid)]">Rediscover Roanoke celebrates the people and independent businesses that make our community. <a href="{{ route('businesses.index') }}" class="font-semibold text-[var(--rr-primary)] underline decoration-[var(--rr-highlight)] underline-offset-4">Explore more local businesses.</a></p>
+        <p class="mt-10 rounded-2xl bg-[var(--rr-neutral-light)] p-6 text-sm leading-6 text-[var(--rr-neutral-mid)]">The Argyle Buzz celebrates the people and independent businesses that make our community. <a href="{{ route('businesses.index') }}" class="font-semibold text-[var(--rr-primary)] underline decoration-[var(--rr-highlight)] underline-offset-4">Explore more local businesses.</a></p>
     </section>
 @endsection

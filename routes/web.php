@@ -4,10 +4,12 @@ use App\Http\Controllers\BusinessController;
 use App\Http\Controllers\BusinessMediaController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\MemberCommunicationPreferenceController;
+use App\Http\Controllers\MemberAccountController;
 use App\Http\Controllers\MemberBusinessProfileController;
 use App\Http\Controllers\MemberEventController;
 use App\Http\Controllers\MemberActivityController;
 use App\Http\Controllers\MemberFileController;
+use App\Http\Controllers\MemberReportController;
 use App\Http\Controllers\MemberResourceController;
 use App\Http\Controllers\PublicPageController;
 use App\Http\Controllers\SuperAdminController;
@@ -43,6 +45,10 @@ Route::middleware('auth')->group(function (): void {
         ->name('dashboard.businesses.images.store');
     Route::put('/dashboard/email-preferences', [MemberCommunicationPreferenceController::class, 'update'])
         ->name('dashboard.email-preferences');
+    Route::put('/dashboard/account/profile', [MemberAccountController::class, 'updateProfile'])
+        ->name('dashboard.account.profile.update');
+    Route::put('/dashboard/account/password', [MemberAccountController::class, 'updatePassword'])
+        ->name('dashboard.account.password.update');
     Route::post('/dashboard/events/{event}/registrations', [MemberEventController::class, 'store'])
         ->name('dashboard.events.register');
     Route::delete('/dashboard/event-registrations/{registration}', [MemberEventController::class, 'cancel'])
@@ -57,6 +63,10 @@ Route::middleware('auth')->group(function (): void {
         ->name('dashboard.files.resources');
     Route::get('/dashboard/files/reports/{report}', [MemberFileController::class, 'report'])
         ->name('dashboard.files.reports');
+    Route::post('/dashboard/reports/submissions', [MemberReportController::class, 'store'])
+        ->name('dashboard.reports.submissions.store');
+    Route::get('/dashboard/reports/submissions/{report}/download', [MemberReportController::class, 'download'])
+        ->name('dashboard.reports.submissions.download');
     Route::get('/dashboard/{path?}', DashboardController::class)
         ->where('path', '.*')
         ->name('dashboard.spa');
@@ -92,6 +102,7 @@ Route::middleware(['auth', 'can:super-admin'])
         Route::get('/api/resources/{resource}/download', [SuperAdminContentController::class, 'downloadResource'])->name('resources.download');
         Route::get('/api/resources/{resource}/versions/{version}/download', [SuperAdminContentController::class, 'downloadResourceVersion'])->name('resources.versions.download');
         Route::post('/api/reports', [SuperAdminContentController::class, 'storeReport'])->name('reports.store');
+        Route::patch('/api/reports/{report}/review', [SuperAdminContentController::class, 'reviewReport'])->name('reports.review');
         Route::put('/api/reports/{report}', [SuperAdminContentController::class, 'updateReport'])->name('reports.update');
         Route::delete('/api/reports/{report}', [SuperAdminContentController::class, 'archiveReport'])->name('reports.archive');
         Route::get('/api/reports/{report}/download', [SuperAdminContentController::class, 'downloadReport'])->name('reports.download');

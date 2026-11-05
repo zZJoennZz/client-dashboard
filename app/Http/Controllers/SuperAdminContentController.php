@@ -160,6 +160,34 @@ class SuperAdminContentController extends Controller
         return Storage::disk('local')->download($report->file_path, $report->file_name ?? 'report');
     }
 
+    public function reviewReport(Request $request, Report $report): JsonResponse
+    {
+        $data = $request->validate([
+            'decision' => ['required', 'in:approve,reject'],
+            'visibility' => ['sometimes', 'required', 'in:private,member,public'],
+            'reporting_period' => ['sometimes', 'nullable', 'string', 'max:100'],
+            'review_feedback' => ['nullable', 'string', 'max:10000'],
+        ]);
+
+        abort_unless(in_array($report->status, ['pending_review', 'rejected'], true), 422);
+
+        DB::transaction(function () use ($request, $report, $data): void {
+            $old = $this->contentAudit($report);
+            $approved = $data['decision'] === 'approve';
+            $report->status = $approved ? 'published' : 'rejected';
+            $report->visibility = $approved ? ($data['visibility'] ?? 'member') : 'private';
+            $report->reporting_period = $data['reporting_period'] ?? $report->reporting_period;
+            $report->review_feedback = $data['review_feedback'] ?? null;
+            $report->reviewed_by = $request->user()->id;
+            $report->reviewed_at = now();
+            $report->published_at = $approved ? now() : null;
+            $report->save();
+            AuditLog::record($request->user(), $approved ? 'report.approved' : 'report.rejected', $report, $old, $this->contentAudit($report));
+        });
+
+        return response()->json(['id' => $report->id, 'status' => $report->status]);
+    }
+
     private function resourceData(Request $request, bool $creating): array
     {
         if (is_string($request->input('tags'))) {

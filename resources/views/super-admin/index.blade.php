@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="theme-color" content="#F9FAFB">
-    <title>Service Provider · Rediscover Roanoke</title>
-    <meta name="description" content="Platform-wide service provider administration for Rediscover Roanoke.">
+    <title>Service Provider · The Argyle Buzz</title>
+    <meta name="description" content="Platform-wide service provider administration for The Argyle Buzz.">
     @vite(['resources/css/app.css', 'resources/js/super-admin/main.jsx'])
 </head>
 <body class="min-h-screen bg-[var(--rr-background)] font-sans text-[var(--rr-neutral-dark)] antialiased">

@@ -57,7 +57,7 @@ class DashboardController extends Controller
                 ->whereIn('visibility', ['member', 'public']);
         }
         $reports = $reportsQuery
-            ->get(['id', 'business_id', 'title', 'description', 'reporting_period', 'file_name', 'file_size', 'published_at', 'status', 'visibility', 'file_path'])
+            ->get(['id', 'business_id', 'title', 'description', 'reporting_period', 'reporting_period_start', 'reporting_period_end', 'file_name', 'file_size', 'published_at', 'status', 'visibility', 'file_path'])
             ->map(function (Report $report) use ($businessNames, $isSuperAdmin): array {
                 $record = $report->toArray();
                 unset($record['file_path']);
@@ -66,6 +66,18 @@ class DashboardController extends Controller
                     : null;
 
                 return $this->withBusinessName($record, $businessNames);
+            });
+
+        $reportSubmissions = Report::query()
+            ->where('created_by', $user->id)
+            ->whereIn('status', ['pending_review', 'rejected'])
+            ->latest('submitted_at')
+            ->get(['id', 'business_id', 'title', 'description', 'reporting_period', 'reporting_period_start', 'reporting_period_end', 'status', 'review_feedback', 'submitted_at', 'reviewed_at', 'file_name'])
+            ->map(function (Report $report) use ($businessNames): array {
+                return $this->withBusinessName($report->only([
+                    'id', 'business_id', 'title', 'description', 'reporting_period', 'reporting_period_start', 'reporting_period_end', 'status',
+                    'review_feedback', 'submitted_at', 'reviewed_at', 'file_name',
+                ]), $businessNames);
             });
 
         $eventsQuery = Event::query()
@@ -230,6 +242,7 @@ class DashboardController extends Controller
             'businesses' => $businessData,
             'membership' => $membership ? $this->membershipData($membership) : null,
             'reports' => $reports,
+            'report_submissions' => $reportSubmissions,
             'events' => $events,
             'resources' => $resources,
             'marketing' => $marketing,
@@ -253,7 +266,7 @@ class DashboardController extends Controller
                     ->count(),
 
                 'recorded_attendance' => (clone $engagementRegistrations)
-                    ->whereNotNull('attended_at')
+                    ->currentlyAttended()
                     ->count(),
             ],
         ]);

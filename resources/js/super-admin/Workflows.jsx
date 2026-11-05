@@ -386,10 +386,20 @@ function Field({ name, label, type = 'text', required = false, options = [], val
 
 function Actions({ section, row, urls, action, startEdit, startAnnouncementEdit, showRegistrants, showMembershipDetails, exportCsv }) {
     return <div className="flex flex-wrap gap-2">
-        {['content', 'reports', 'events', 'marketing'].includes(section) && <button className={secondary} onClick={() => startEdit(row)}>Edit</button>}
+        {(section === 'content' || section === 'events' || section === 'marketing' || (section === 'reports' && !['pending_review', 'rejected'].includes(row.status))) && <button className={secondary} onClick={() => startEdit(row)}>Edit</button>}
         {section === 'services' && !row.deleted && <button className={secondary} onClick={() => startEdit(row)}>Edit</button>}
         {section === 'content' && <>{row.file_name && <a className={`${secondary} inline-flex items-center`} href={`${urls.resources}/${row.id}/download`}>Download</a>}<button className={secondary} onClick={() => action(`${urls.resources}/${row.id}`, 'DELETE')}>Archive</button></>}
-        {section === 'reports' && <>{row.file_name && <a className={`${secondary} inline-flex items-center`} href={`${urls.reports}/${row.id}/download`}>Download</a>}<button className={secondary} onClick={() => action(`${urls.reports}/${row.id}`, 'DELETE')}>Archive</button></>}
+        {section === 'reports' && <>
+            {row.file_name && <a className={`${secondary} inline-flex items-center`} href={`${urls.reports}/${row.id}/download`}>Download</a>}
+            {row.status === 'pending_review' && <>
+                <button className={secondary} onClick={() => action(`${urls.reports}/${row.id}/review`, 'PATCH', { decision: 'approve', visibility: 'member' })}>Approve and publish</button>
+                <button className={secondary} onClick={() => {
+                    const feedback = window.prompt('Rejection feedback (optional):') || '';
+                    action(`${urls.reports}/${row.id}/review`, 'PATCH', { decision: 'reject', review_feedback: feedback });
+                }}>Reject</button>
+            </>}
+            <button className={secondary} onClick={() => action(`${urls.reports}/${row.id}`, 'DELETE')}>Archive</button>
+        </>}
         {section === 'events' && <><button className={secondary} onClick={() => action(`${urls.events}/${row.id}/status`, 'PATCH', { status: row.status === 'published' ? 'draft' : 'published' })}>{row.status === 'published' ? 'Unpublish' : 'Publish'}</button><button className={secondary} onClick={() => action(`${urls.events}/${row.id}/status`, 'PATCH', { status: 'cancelled' })}>Cancel</button><button className={secondary} onClick={() => showRegistrants(row)}>Registrants</button></>}
         {section === 'marketing' && <><button className={secondary} onClick={() => action(`${urls.marketing}/${row.id}/duplicate`, 'POST')}>Duplicate</button><button className={secondary} onClick={() => action(`${urls.marketing}/${row.id}/status`, 'PATCH', { status: 'cancelled' })}>Cancel activity</button><button className={secondary} onClick={() => action(`${urls.marketing}/${row.id}`, 'DELETE')}>Archive</button><p className="w-full text-xs text-[var(--rr-neutral-mid)]">Posting is manual; no social network publishing is connected.</p></>}
         {section === 'services' && null}
@@ -417,7 +427,7 @@ function OrderEditor({ row, url, action }) {
 function statusesFor(section) {
     return {
         memberships: ['active', 'pending_activation', 'delinquent', 'cancelled', 'expired'],
-        content: ['draft', 'published'], reports: ['draft', 'published'],
+        content: ['draft', 'published'], reports: ['draft', 'pending_review', 'rejected', 'published'],
         events: ['draft', 'scheduled', 'published', 'cancelled'],
         marketing: ['planned', 'scheduled', 'completed', 'cancelled'],
         orders: ['pending', 'processing', 'completed', 'cancelled', 'refunded'],

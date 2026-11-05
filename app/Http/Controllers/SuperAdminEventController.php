@@ -90,14 +90,16 @@ class SuperAdminEventController extends Controller
         ]);
         $registration = DB::transaction(function () use ($request, $registration, $data): EventRegistration {
             $registration = EventRegistration::query()->lockForUpdate()->findOrFail($registration->id);
-            $wasAttended = $registration->attended_at !== null;
+            $wasCurrentlyAttended = $registration->status === 'attended' && $registration->attended_at !== null;
             $old = ['status' => $registration->status, 'attended_at' => $registration->attended_at];
             $registration->forceFill([
                 'status' => $data['status'],
                 'cancelled_at' => $data['status'] === 'cancelled' ? now() : null,
-                'attended_at' => $data['status'] === 'attended' ? ($registration->attended_at ?? now()) : $registration->attended_at,
+                'attended_at' => $data['status'] === 'attended'
+                    ? ($wasCurrentlyAttended ? $registration->attended_at : now())
+                    : null,
             ])->save();
-            if ($data['status'] === 'attended' && ! $wasAttended) {
+            if ($data['status'] === 'attended' && ! $wasCurrentlyAttended) {
                 $registration->loadMissing('event');
                 app(MemberActivityRecorder::class)->record(
                     $registration->user,

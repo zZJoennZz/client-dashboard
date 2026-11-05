@@ -16,7 +16,7 @@ export default function Topbar({ data, pageTitle, setMenuOpen }) {
                     </button>
                     <div className="min-w-0">
                         <p className="truncate text-sm font-semibold text-[var(--rr-neutral-dark)]">{pageTitle}</p>
-                        <p className="hidden truncate text-xs text-[var(--rr-neutral-mid)] sm:block">{data?.user?.is_super_admin ? 'All businesses' : data?.business?.name ?? 'Rediscover Roanoke member workspace'}</p>
+                        <p className="hidden truncate text-xs text-[var(--rr-neutral-mid)] sm:block">{data?.user?.is_super_admin ? 'All businesses' : data?.business?.name ?? 'The Argyle Buzz member workspace'}</p>
                     </div>
                 </div>
                 <details className="relative">

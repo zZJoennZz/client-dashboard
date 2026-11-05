@@ -1,14 +1,14 @@
 @extends('layouts.app')
 
-@section('title', 'Join Rediscover Roanoke')
-@section('description', 'Register your local business with the Rediscover Roanoke Local Business Growth Initiative.')
+@section('title', 'Join The Argyle Buzz')
+@section('description', 'Register your local business with The Argyle Buzz Local Business Growth Initiative.')
 
 @section('content')
     <section class="mx-auto max-w-4xl px-5 py-12 sm:px-8 sm:py-16">
         <div class="mx-auto max-w-2xl text-center">
             <p class="text-xs font-bold uppercase tracking-[0.16em] text-[var(--rr-accent)]">A stronger local economy starts here</p>
             <h1 class="mt-3 text-4xl font-semibold tracking-tight text-[var(--rr-neutral-dark)] sm:text-5xl">Bring your business into the community.</h1>
-            <p class="mt-4 text-base leading-7 text-[var(--rr-neutral-mid)]">Create an account to join local owners building a more connected Roanoke.</p>
+            <p class="mt-4 text-base leading-7 text-[var(--rr-neutral-mid)]">Create an account to join local owners building a more connected Argyle.</p>
         </div>
 
         <ol class="mx-auto mt-8 grid max-w-2xl grid-cols-3 gap-2 text-center text-xs font-semibold text-[var(--rr-neutral-mid)] sm:gap-4 sm:text-sm" aria-label="Registration steps">
@@ -136,7 +136,7 @@
                 <fieldset class="border-t border-[var(--rr-border)] pt-7">
                     <legend class="text-lg font-semibold text-[var(--rr-neutral-dark)]">Membership & payment</legend>
                     <div class="mt-4 rounded-lg border border-[var(--rr-border)] bg-[var(--rr-neutral-light)] p-5">
-                        <p class="font-semibold text-[var(--rr-neutral-dark)]">Rediscover Roanoke business membership</p>
+                        <p class="font-semibold text-[var(--rr-neutral-dark)]">The Argyle Buzz business membership</p>
                         <p class="mt-1 text-sm leading-6 text-[var(--rr-neutral-mid)]">Membership pricing is being finalized. Stripe checkout will be added here later. For this test registration, membership is marked active with simulated payment status; no payment is collected.</p>
                     </div>
                     <label for="terms" class="mt-5 flex items-start gap-3 text-sm leading-6 text-[var(--rr-neutral-dark)]">

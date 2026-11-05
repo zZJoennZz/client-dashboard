@@ -114,68 +114,112 @@ class MemberEngagementTest extends TestCase
         ]);
     }
 
-    // public function test_attendance_is_recorded_only_by_super_admin_and_not_duplicated_on_repeat_updates(): void
-    // {
-    //     $business = Business::factory()->create();
-    //     $member = User::factory()->create();
-    //     $business->users()->attach($member->id, [
-    //         'role' => 'member',
-    //         'access_level' => 'member',
-    //         'status' => 'active',
-    //         'is_primary' => true,
-    //     ]);
-    //     $event = Event::factory()->create(['business_id' => $business->id]);
-    //     $registration = EventRegistration::factory()->create([
-    //         'event_id' => $event->id,
-    //         'user_id' => $member->id,
-    //         'status' => 'registered',
-    //         'attended_at' => null,
-    //     ]);
-    //     $regular = User::factory()->create();
-    //     $this->actingAs($regular)
-    //         ->patchJson(route('super-admin.event-registrations.update', $registration), ['status' => 'attended'])
-    //         ->assertForbidden();
-    //     $this->assertDatabaseMissing('member_activities', ['activity_type' => 'event_attended']);
+    public function test_attendance_is_reversible_and_historical_activity_is_retained(): void
+    {
+        $business = Business::factory()->create();
+        $otherBusiness = Business::factory()->create();
+        $member = User::factory()->create();
+        $business->users()->attach($member->id, [
+            'role' => 'member',
+            'access_level' => 'member',
+            'status' => 'active',
+            'is_primary' => true,
+        ]);
+        $event = Event::factory()->create(['business_id' => $business->id]);
+        $registration = EventRegistration::factory()->create([
+            'event_id' => $event->id,
+            'user_id' => $member->id,
+            'status' => 'registered',
+            'attended_at' => null,
+        ]);
 
-    //     $admin = User::factory()->superAdmin()->create();
-    //     $this->actingAs($admin)
-    //         ->patchJson(route('super-admin.event-registrations.update', $registration), ['status' => 'attended'])
-    //         ->assertOk();
-    //     $this->patchJson(route('super-admin.event-registrations.update', $registration), ['status' => 'attended'])
-    //         ->assertOk();
+        $regular = User::factory()->create();
+        $otherBusinessOwner = User::factory()->create();
+        $otherBusiness->users()->attach($otherBusinessOwner, [
+            'role' => 'owner',
+            'access_level' => 'owner',
+            'status' => 'active',
+            'is_primary' => true,
+        ]);
 
-    //     $this->assertDatabaseCount('member_activities', 1);
-    //     $this->assertDatabaseHas('member_activities', [
-    //         'user_id' => $member->id,
-    //         'business_id' => $business->id,
-    //         'event_id' => $event->id,
-    //         'activity_type' => 'event_attended',
-    //     ]);
-    //     $this->assertNotNull($registration->fresh()->attended_at);
+        $this->actingAs($regular)
+            ->patchJson(route('super-admin.event-registrations.update', $registration), ['status' => 'attended'])
+            ->assertForbidden();
+        $this->actingAs($otherBusinessOwner)
+            ->patchJson(route('super-admin.event-registrations.update', $registration), ['status' => 'attended'])
+            ->assertForbidden();
+        $this->assertDatabaseMissing('member_activities', ['activity_type' => 'event_attended']);
 
-    //     $this->getJson(route('super-admin.engagement', ['business_id' => $business->id]))
-    //         ->assertOk()
-    //         ->assertJsonPath('metrics.recorded_attendance', 1)
-    //         ->assertJsonPath('activities.data.0.type', 'event_attended')
-    //         ->assertJsonPath('participation.data.0.status', 'attended')
-    //         ->assertJsonPath('business_summaries.data.0.business', $business->company_name)
-    //         ->assertJsonPath('participation.data.0.member', $member->profile->full_name)
-    //         ->assertJsonPath('event_totals.data.0.registrations', 1)
-    //         ->assertJsonPath('event_totals.data.0.attendance_recorded', 1);
+        $admin = User::factory()->superAdmin()->create();
+        $this->actingAs($admin)
+            ->patchJson(route('super-admin.event-registrations.update', $registration), ['status' => 'attended'])
+            ->assertOk();
 
-    //     $this->actingAs($member)
-    //         ->getJson(route('dashboard.data'))
-    //         ->assertJsonPath('attendance_history.0.event', $event->title)
-    //         ->assertJsonPath('engagement.recorded_attendance', 1);
+        $attendedAt = $registration->fresh()->attended_at;
+        $this->assertNotNull($attendedAt);
+        $this->assertSame('attended', $registration->fresh()->status);
 
-    //     $this->actingAs($admin)
-    //         ->patchJson(route('super-admin.event-registrations.update', $registration), ['status' => 'registered'])
-    //         ->assertOk();
-    //     $this->actingAs($member)
-    //         ->getJson(route('dashboard.data'))
-    //         ->assertJsonPath('engagement.recorded_attendance', 0)
-    //         ->assertJsonPath('attendance_history.0.event', $event->title);
-    // }
+        $this->patchJson(route('super-admin.event-registrations.update', $registration), ['status' => 'attended'])
+            ->assertOk();
+        $this->assertDatabaseCount('member_activities', 1);
+        $this->assertDatabaseHas('member_activities', [
+            'user_id' => $member->id,
+            'business_id' => $business->id,
+            'event_id' => $event->id,
+            'activity_type' => 'event_attended',
+        ]);
+        $this->assertTrue($attendedAt->equalTo($registration->fresh()->attended_at));
+
+        $this->getJson(route('super-admin.engagement', ['business_id' => $business->id]))
+            ->assertOk()
+            ->assertJsonPath('metrics.recorded_attendance', 1)
+            ->assertJsonPath('activities.data.0.type', 'event_attended')
+            ->assertJsonPath('participation.data.0.status', 'attended')
+            ->assertJsonPath('business_summaries.data.0.business', $business->company_name)
+            ->assertJsonPath('participation.data.0.member', $member->profile->full_name)
+            ->assertJsonPath('event_totals.data.0.registrations', 1)
+            ->assertJsonPath('event_totals.data.0.attendance_recorded', 1);
+
+        $this->actingAs($member)
+            ->getJson(route('dashboard.data'))
+            ->assertJsonPath('attendance_history.0.event', $event->title)
+            ->assertJsonPath('engagement.recorded_attendance', 1);
+
+        $this->actingAs($admin)
+            ->patchJson(route('super-admin.event-registrations.update', $registration), ['status' => 'registered'])
+            ->assertOk();
+        $this->assertNull($registration->fresh()->attended_at);
+        $this->assertDatabaseCount('member_activities', 1);
+
+        $this->actingAs($member)
+            ->getJson(route('dashboard.data'))
+            ->assertJsonPath('engagement.recorded_attendance', 0)
+            ->assertJsonPath('attendance_history.0.event', $event->title);
+
+        $this->actingAs($admin)
+            ->patchJson(route('super-admin.event-registrations.update', $registration), ['status' => 'attended'])
+            ->assertOk();
+        $this->assertNotNull($registration->fresh()->attended_at);
+        $this->assertDatabaseCount('member_activities', 2);
+
+        $this->actingAs($admin)
+            ->patchJson(route('super-admin.event-registrations.update', $registration), ['status' => 'cancelled'])
+            ->assertOk();
+        $this->assertSame('cancelled', $registration->fresh()->status);
+        $this->assertNull($registration->fresh()->attended_at);
+        $this->assertDatabaseCount('member_activities', 2);
+
+        $this->getJson(route('super-admin.engagement', ['business_id' => $business->id]))
+            ->assertOk()
+            ->assertJsonPath('metrics.recorded_attendance', 0)
+            ->assertJsonPath('activities.data.0.type', 'event_attended')
+            ->assertJsonPath('participation.data.0.status', 'cancelled');
+
+        $export = $this->actingAs($admin)
+            ->post(route('super-admin.exports', ['type' => 'registrants']), ['status' => 'attended']);
+        $export->assertOk();
+        $this->assertStringNotContainsString($member->email, $export->streamedContent());
+    }
 
     public function test_provider_engagement_summaries_and_participation_filters_are_accurate(): void
     {
@@ -292,6 +336,8 @@ class MemberEngagementTest extends TestCase
             'visibility' => 'member',
         ]);
 
+        $this->postJson(route('dashboard.activity.reports.viewed', $report))->assertUnauthorized();
+
         $this->actingAs($member);
         $this->postJson(route('dashboard.activity.reports.viewed', $report))->assertOk();
         $this->postJson(route('dashboard.activity.reports.viewed', $report))->assertOk();
@@ -320,6 +366,48 @@ class MemberEngagementTest extends TestCase
         $this->postJson(route('dashboard.activity.reports.viewed', $report))->assertOk();
         $this->get(route('dashboard.files.reports', $report))->assertOk();
         $this->assertDatabaseCount('member_activities', 4);
+    }
+
+    public function test_report_view_tracking_rejects_inaccessible_reports(): void
+    {
+        $member = User::factory()->create();
+        $business = Business::factory()->create();
+        $business->users()->attach($member->id, [
+            'role' => 'member',
+            'access_level' => 'member',
+            'status' => 'active',
+            'is_primary' => true,
+        ]);
+        $outsider = User::factory()->create();
+        $draftReport = Report::factory()->create([
+            'business_id' => $business->id,
+            'status' => 'draft',
+            'visibility' => 'member',
+        ]);
+        $privateReport = Report::factory()->create([
+            'business_id' => $business->id,
+            'status' => 'published',
+            'visibility' => 'private',
+        ]);
+        $inaccessibleReport = Report::factory()->create([
+            'business_id' => $business->id,
+            'status' => 'published',
+            'visibility' => 'member',
+        ]);
+
+        $this->actingAs($member)
+            ->postJson(route('dashboard.activity.reports.viewed', $draftReport))
+            ->assertNotFound();
+        $this->actingAs($member)
+            ->postJson(route('dashboard.activity.reports.viewed', $privateReport))
+            ->assertNotFound();
+        $this->actingAs($outsider)
+            ->postJson(route('dashboard.activity.reports.viewed', $inaccessibleReport))
+            ->assertNotFound();
+
+        $this->assertDatabaseMissing('member_activities', [
+            'activity_type' => 'report_viewed',
+        ]);
     }
 
     public function test_shared_resource_activity_is_attributed_to_an_authorized_business(): void

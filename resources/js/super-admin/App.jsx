@@ -93,7 +93,9 @@ export default function App({
             {menuOpen && <button type="button" aria-label="Close navigation menu" onClick={() => setMenuOpen(false)} className="fixed inset-0 z-40 bg-slate-950/50 lg:hidden" />}
             <aside className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col bg-[var(--rr-primary)] text-white transition-transform lg:translate-x-0 ${menuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
                 <div className="flex h-16 items-center justify-between border-b border-white/10 px-5">
-                    <a href="/" className="font-display text-sm font-bold tracking-wide">REDISCOVER ROANOKE</a>
+                    <a href="/" className="rounded bg-white px-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--rr-warning)]">
+                        <img src="/the-argyle-buzz-logo.png" alt="The Argyle Buzz" width="475" height="88" className="h-10 w-auto max-w-[220px]" />
+                    </a>
                     <button type="button" aria-label="Close navigation" onClick={() => setMenuOpen(false)} className="min-h-11 min-w-11 rounded-lg text-white/80 hover:bg-white/10 lg:hidden">×</button>
                 </div>
                 <p className="px-5 pb-2 pt-5 text-[10px] font-bold uppercase tracking-[0.16em] text-white/50">Service provider</p>
@@ -788,7 +790,7 @@ function Accounts({ url, requestJson, exportUrl }) {
 const listColumns = {
     memberships: [['business_name', 'Business'], ['plan', 'Plan'], ['status', 'Membership status'], ['payment_status', 'Payment status'], ['start_date', 'Start date'], ['end_date', 'End date']],
     content: [['title', 'Resource'], ['business_name', 'Business'], ['resource_type', 'Type'], ['status', 'Status'], ['visibility', 'Visibility'], ['file_name', 'File'], ['published_at', 'Published']],
-    reports: [['title', 'Report'], ['business_name', 'Business'], ['reporting_period', 'Reporting period'], ['status', 'Status'], ['visibility', 'Visibility'], ['file_name', 'File'], ['published_at', 'Published']],
+    reports: [['title', 'Report'], ['business_name', 'Business'], ['creator_name', 'Submitted by'], ['reporting_period', 'Reporting period'], ['status', 'Status'], ['visibility', 'Visibility'], ['file_name', 'File'], ['submitted_at', 'Submitted'], ['review_feedback', 'Feedback'], ['published_at', 'Published']],
     events: [['title', 'Event'], ['business_name', 'Business'], ['status', 'Status'], ['is_published', 'Published'], ['starts_at', 'Starts'], ['active_registrations', 'Registrations'], ['capacity', 'Capacity']],
     marketing: [['title', 'Activity'], ['business_name', 'Business'], ['status', 'Status'], ['scheduled_at', 'Scheduled'], ['assigned_staff', 'Assigned staff'], ['description', 'Description']],
     orders: [['order_number', 'Order'], ['business_name', 'Business'], ['member_name', 'Member'], ['status', 'Order status'], ['payment_status', 'Payment status'], ['total', 'Total'], ['submitted_at', 'Submitted']],

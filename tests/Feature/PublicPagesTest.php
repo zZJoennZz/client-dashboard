@@ -54,7 +54,7 @@ class PublicPagesTest extends TestCase
         $this->get(route('home'))
             ->assertOk()
             ->assertViewHas('membership.price_label', 'Pricing coming soon')
-            ->assertSee('Support Roanoke.')
+            ->assertSee('Support Argyle.')
             ->assertSee('How it works')
             ->assertSee('Frequently asked questions')
             ->assertSee('Membership pricing is still being finalized.');

@@ -132,6 +132,7 @@ class SuperAdminEngagementController extends Controller
                 'attendance_recorded_30_days' => EventRegistration::query()
                     ->selectRaw('COUNT(*)')
                     ->whereNotNull('event_registrations.attended_at')
+                    ->where('event_registrations.status', 'attended')
                     ->where('event_registrations.attended_at', '>=', now()->subDays(30)->startOfDay())
                     ->whereHas('event', fn (Builder $event) => $event
                         ->whereColumn('events.business_id', 'clients.id')),
@@ -174,11 +175,15 @@ class SuperAdminEngagementController extends Controller
                             $filters['registration_status']
                         )
                     );
+                    if (($filters['registration_status'] ?? null) === 'attended') {
+                        $query->whereNotNull('attended_at');
+                    }
                 },
             ])
             ->withCount([
                 'registrations as attendance_recorded' => function (Builder $query) use ($filters): void {
                     $query->whereNotNull('attended_at')
+                        ->where('status', 'attended')
                         ->when(
                             isset($filters['registration_status']),
                             fn (Builder $query) => $query->where(
@@ -243,6 +248,10 @@ class SuperAdminEngagementController extends Controller
                 fn (Builder $query) => $query->where('status', $filters['registration_status'])
             )
             ->when(
+                ($filters['registration_status'] ?? null) === 'attended',
+                fn (Builder $query) => $query->whereNotNull('attended_at')
+            )
+            ->when(
                 isset($filters['from']),
                 fn (Builder $query) => $query->whereDate('registered_at', '>=', $filters['from'])
             )
@@ -297,6 +306,7 @@ class SuperAdminEngagementController extends Controller
 
                 'recorded_attendance' => EventRegistration::query()
                     ->whereNotNull('attended_at')
+                    ->where('status', 'attended')
                     ->count(),
 
                 'members_active_30_days' => (clone $recentActivity)

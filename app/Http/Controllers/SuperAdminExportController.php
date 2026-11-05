@@ -135,6 +135,7 @@ class SuperAdminExportController extends Controller
         if (! empty($filters['event_id'])) $query->where('event_id', $filters['event_id']);
         if (! empty($filters['business_id'])) $query->whereHas('event', fn ($q) => $q->where('business_id', $filters['business_id']));
         if (! empty($filters['status'])) $query->where('status', $filters['status']);
+        if (($filters['status'] ?? null) === 'attended') $query->whereNotNull('attended_at');
         if (! empty($filters['from'])) $query->whereDate('registered_at', '>=', $filters['from']);
         if (! empty($filters['to'])) $query->whereDate('registered_at', '<=', $filters['to']);
         $rows = $query->orderBy('id')->get()->map(fn (EventRegistration $registration): array => [

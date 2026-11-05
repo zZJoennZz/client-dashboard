@@ -4,11 +4,7 @@
 <header class="sticky top-0 z-40 border-b border-[var(--rr-border)] bg-[var(--rr-background)]/95 shadow-sm backdrop-blur">
     <nav class="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-3.5 sm:px-8" aria-label="Main navigation">
         <a href="{{ route('home') }}" class="flex w-fit items-center gap-3 rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--rr-highlight)]">
-            <span class="flex size-11 items-center justify-center rounded-2xl bg-[var(--rr-primary)] text-sm font-bold tracking-wide text-[var(--rr-accent-light)]">RR</span>
-            <span class="leading-tight">
-                <span class="block text-sm font-bold tracking-[0.12em]">REDISCOVER</span>
-                <span class="block text-xs font-medium tracking-[0.2em] text-[var(--rr-neutral-mid)]">ROANOKE</span>
-            </span>
+            <img src="{{ asset('the-argyle-buzz-logo.png') }}" alt="The Argyle Buzz" width="475" height="88" class="h-11 w-auto max-w-[42vw] object-contain">
         </a>
         <div class="hidden items-center gap-6 text-sm font-medium text-[var(--rr-neutral-mid)] lg:flex">
             <a href="{{ route('benefits') }}#how-it-works" @class(['rounded-sm hover:text-[var(--rr-highlight)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--rr-highlight)]', 'text-[var(--rr-highlight)]' => request()->routeIs('benefits')])>How it works</a>

@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('title', 'Rooted here. Growing together.')
-@section('description', 'Meet the independent businesses shaping the Roanoke Valley and discover how membership helps them grow.')
+@section('description', 'Meet the independent businesses shaping Argyle and discover how membership helps them grow.')
 
 @section('content')
     <section class="relative isolate overflow-hidden bg-[var(--rr-accent-light)]">
@@ -13,8 +13,8 @@
                     <span class="size-2 rounded-full bg-[var(--rr-highlight)]" aria-hidden="true"></span>
                     A local business growth initiative
                 </p>
-                <h1 class="text-5xl font-semibold leading-[1.04] tracking-[-0.055em] text-[var(--rr-neutral-dark)] sm:text-6xl">Support Roanoke.<br><span class="font-serif font-normal italic text-[var(--rr-highlight)]">Grow your business.</span></h1>
-                <p class="mt-7 max-w-xl text-lg leading-8 text-[var(--rr-neutral-mid)]">Join the Roanoke Local Business Growth Initiative and connect with neighbors, fellow owners, and the community that makes this place home.</p>
+                <h1 class="text-5xl font-semibold leading-[1.04] tracking-[-0.055em] text-[var(--rr-neutral-dark)] sm:text-6xl">Support Argyle.<br><span class="font-serif font-normal italic text-[var(--rr-highlight)]">Grow your business.</span></h1>
+                <p class="mt-7 max-w-xl text-lg leading-8 text-[var(--rr-neutral-mid)]">Join Argyle's local business community and connect with neighbors, fellow owners, and the people who make this place home.</p>
                 <div class="mt-9 flex flex-wrap gap-3">
                     <a href="{{ route('register') }}" class="min-h-11 rounded-lg bg-[var(--rr-highlight)] px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-[var(--rr-highlight-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--rr-highlight)]">Join now <span aria-hidden="true">→</span></a>
                     <a href="{{ route('businesses.index') }}" class="min-h-11 rounded-lg border border-[var(--rr-primary)]/25 bg-white/70 px-6 py-3.5 text-sm font-semibold text-[var(--rr-primary)] transition hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--rr-primary)]">Explore local businesses</a>
@@ -25,7 +25,7 @@
                 <div class="aspect-[4/3] overflow-hidden rounded-[2rem] bg-[var(--rr-accent-light)] p-5 shadow-xl shadow-[var(--rr-primary)]/10 sm:p-8">
                     <div class="relative flex h-full items-end overflow-hidden rounded-[1.4rem]">
                         <!-- Image from Laravel Storage -->
-                        <img src="{{ asset('storage/img/Hero Section.jpg') }}" alt="Roanoke mountains and local community" class="absolute inset-0 h-full w-full object-cover">
+                        <img src="{{ asset('storage/img/Hero Section.jpg') }}" alt="Local landscape and community" class="absolute inset-0 h-full w-full object-cover">
                         
                         
                     </div>
@@ -41,7 +41,7 @@
                 <h2 class="mt-3 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">A simple way to grow <span class="font-serif font-normal italic text-[var(--rr-accent)]">together.</span></h2>
             </div>
             <ol class="relative mt-12 grid gap-5 md:grid-cols-3">
-                @foreach ([['01', 'Connect with us', 'Tell us about your local business and what you would like to grow.'], ['02', 'Get discovered', 'Build your place in a directory made for Roanoke neighbors who want to shop local.'], ['03', 'Grow your community', 'Meet fellow businesses and make it easier for more neighbors to find you.']] as [$number, $title, $copy])
+                @foreach ([['01', 'Connect with us', 'Tell us about your local business and what you would like to grow.'], ['02', 'Get discovered', 'Build your place in a directory made for Argyle neighbors who want to shop local.'], ['03', 'Grow your community', 'Meet fellow businesses and make it easier for more neighbors to find you.']] as [$number, $title, $copy])
                     <li class="relative rounded-xl border border-[var(--rr-border)] bg-[var(--rr-background)] p-7 shadow-sm">
                         <span class="flex size-11 items-center justify-center rounded-full bg-[var(--rr-accent-light)] text-sm font-bold text-[var(--rr-accent)]">{{ $number }}</span>
                         <h3 class="mt-5 text-xl font-semibold tracking-tight text-[var(--rr-neutral-dark)]">{{ $title }}</h3>
@@ -59,7 +59,7 @@
                 <h2 class="mt-4 max-w-md text-4xl font-semibold leading-tight tracking-[-0.04em] sm:text-5xl">When local businesses grow, <span class="font-serif font-normal italic text-[var(--rr-accent)]">we all do.</span></h2>
             </div>
             <div>
-                <p class="max-w-2xl text-lg leading-8 text-[var(--rr-neutral-mid)]">Rediscover Roanoke brings independent businesses and neighbors closer. Together, we make it easier to find local favorites, share what makes them special, and keep more opportunity right here in the valley.</p>
+                <p class="max-w-2xl text-lg leading-8 text-[var(--rr-neutral-mid)]">The Argyle Buzz brings independent businesses and neighbors closer. Together, we make it easier to find local favorites, share what makes them special, and keep more opportunity right here in Argyle.</p>
                 <a href="{{ route('benefits') }}" class="mt-6 inline-flex min-h-11 items-center gap-2 rounded-sm text-sm font-bold text-[var(--rr-primary)] underline decoration-[var(--rr-highlight)] decoration-2 underline-offset-4 hover:text-[var(--rr-highlight-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--rr-highlight)]">Discover member benefits <span aria-hidden="true">→</span></a>
             </div>
         </div>
@@ -107,12 +107,12 @@
             <div>
                 <p class="text-xs font-bold uppercase tracking-[0.18em] text-[var(--rr-highlight)]">Membership</p>
                 <h2 class="mt-3 text-4xl font-semibold tracking-[-0.04em]">Local is worth investing in.</h2>
-                <p class="mt-4 max-w-xl leading-7 text-[var(--rr-neutral-mid)]">Be part of a connected community of independent businesses working toward a stronger Roanoke.</p>
+                <p class="mt-4 max-w-xl leading-7 text-[var(--rr-neutral-mid)]">Be part of a connected community of independent businesses working toward a stronger Argyle.</p>
             </div>
             <div class="rounded-xl border border-[var(--rr-border)] bg-white p-7 shadow-sm sm:p-9">
                 <div class="flex flex-wrap items-start justify-between gap-4">
                     <div>
-                        <p class="text-xs font-bold uppercase tracking-[0.16em] text-[var(--rr-accent)]">Rediscover Roanoke</p>
+                        <p class="text-xs font-bold uppercase tracking-[0.16em] text-[var(--rr-accent)]">The Argyle Buzz</p>
                         <h3 class="mt-2 text-2xl font-semibold">Business membership</h3>
                     </div>
                     <span class="rounded-full bg-[var(--rr-accent-light)] px-3 py-1.5 text-xs font-semibold text-[var(--rr-accent)]">Community-led</span>
@@ -135,8 +135,8 @@
         </div>
         <div class="mt-9 divide-y divide-[var(--rr-border)] border-y border-[var(--rr-border)]">
             <details class="group py-5">
-                <summary class="flex min-h-11 cursor-pointer list-none items-center justify-between gap-4 text-left font-semibold text-[var(--rr-neutral-dark)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--rr-primary)]">Who can join Rediscover Roanoke?<span class="text-xl text-[var(--rr-accent)] transition group-open:rotate-45" aria-hidden="true">+</span></summary>
-                <p class="max-w-3xl pt-3 text-sm leading-6 text-[var(--rr-neutral-mid)]">The initiative is for local businesses and community members who want to help independent businesses thrive in the Roanoke Valley. Contact us if you are unsure whether your business is a fit.</p>
+                <summary class="flex min-h-11 cursor-pointer list-none items-center justify-between gap-4 text-left font-semibold text-[var(--rr-neutral-dark)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--rr-primary)]">Who can join The Argyle Buzz?<span class="text-xl text-[var(--rr-accent)] transition group-open:rotate-45" aria-hidden="true">+</span></summary>
+                <p class="max-w-3xl pt-3 text-sm leading-6 text-[var(--rr-neutral-mid)]">The initiative is for local businesses and community members who want to help independent businesses thrive in Argyle. Contact us if you are unsure whether your business is a fit.</p>
             </details>
             <details class="group py-5">
                 <summary class="flex min-h-11 cursor-pointer list-none items-center justify-between gap-4 text-left font-semibold text-[var(--rr-neutral-dark)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--rr-primary)]">What does membership include?<span class="text-xl text-[var(--rr-accent)] transition group-open:rotate-45" aria-hidden="true">+</span></summary>
@@ -161,9 +161,9 @@
         <div class="overflow-hidden rounded-[2rem] bg-[var(--rr-primary)] px-7 py-12 text-[var(--rr-background)] sm:px-12 sm:py-16">
             <div class="grid items-center gap-8 md:grid-cols-[1fr_auto]">
                 <div>
-                    <p class="text-xs font-bold uppercase tracking-[0.18em] text-[var(--rr-accent-light)]">The valley is better together</p>
+                    <p class="text-xs font-bold uppercase tracking-[0.18em] text-[var(--rr-accent-light)]">Argyle is better together</p>
                     <h2 class="mt-4 max-w-2xl text-4xl font-semibold leading-tight tracking-[-0.04em] sm:text-5xl">Your next chapter can start right here.</h2>
-                    <p class="mt-4 max-w-xl leading-7 text-[var(--rr-accent-light)]">Join a community that believes the future of Roanoke is built by the businesses already calling it home.</p>
+                    <p class="mt-4 max-w-xl leading-7 text-[var(--rr-accent-light)]">Join a community that believes Argyle's future is built by the businesses already calling it home.</p>
                 </div>
                 <a href="{{ route('register') }}" class="w-fit rounded-full bg-[var(--rr-accent-light)] px-6 py-3.5 text-sm font-bold text-[var(--rr-neutral-dark)] transition hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--rr-accent-light)]">Join the community <span aria-hidden="true">→</span></a>
             </div>

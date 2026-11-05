@@ -26,11 +26,7 @@ export default function Sidebar({ pageKey, menuOpen, setMenuOpen, navigate }) {
             <aside className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col bg-[var(--rr-primary)] text-white transition-transform duration-200 lg:translate-x-0 ${menuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
                 <div className="flex h-20 items-center justify-between border-b border-white/10 px-6">
                     <a href="/" className="flex items-center gap-3 rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--rr-warning)]">
-                        <span className="flex size-10 items-center justify-center rounded-xl bg-[var(--rr-accent-light)] text-sm font-bold text-[var(--rr-primary)]">RR</span>
-                        <span>
-                            <span className="block text-xs font-bold tracking-[0.15em]">REDISCOVER</span>
-                            <span className="block text-[10px] tracking-[0.22em] text-white/65">ROANOKE</span>
-                        </span>
+                        <img src="/the-argyle-buzz-logo.png" alt="The Argyle Buzz" width="475" height="88" className="h-10 w-auto max-w-[220px] rounded bg-white px-1" />
                     </a>
                     <button onClick={() => setMenuOpen(false)} className="min-h-11 min-w-11 rounded-lg text-white/80 hover:bg-white/10 lg:hidden" aria-label="Close navigation">×</button>
                 </div>

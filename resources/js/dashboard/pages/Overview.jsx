@@ -36,7 +36,7 @@ export default function Overview({ data, navigate }) {
                 <p className="mt-3 max-w-2xl text-sm leading-6 text-white/75">
                     {data.user.is_super_admin
                         ? 'Platform-wide visibility across all member businesses, accounts, and activity.'
-                        : 'Your home base for your business and Rediscover Roanoke membership.'}
+                        : 'Your home base for your business and The Argyle Buzz membership.'}
                 </p>
 
                 {!data.user.is_super_admin && (
@@ -107,7 +107,7 @@ export default function Overview({ data, navigate }) {
             {!business && !data.user.is_super_admin && (
                 <Card>
                     <EmptyState title="No active business is connected to your account">
-                        If you believe this is an error, contact the Rediscover Roanoke team.
+                        If you believe this is an error, contact The Argyle Buzz team.
                         No business information is available in this account yet.
                     </EmptyState>
                 </Card>

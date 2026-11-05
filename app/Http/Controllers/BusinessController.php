@@ -123,7 +123,7 @@ class BusinessController extends Controller
             'google_maps_url',
             $address !== '' ? 'https://www.google.com/maps/search/?api=1&query='.rawurlencode($address) : null
         );
-        $business->setAttribute('seo_title', $business->meta_title ?: $business->company_name.' · Rediscover Roanoke');
+        $business->setAttribute('seo_title', $business->meta_title ?: $business->company_name.' · The Argyle Buzz');
         $business->setAttribute('seo_description', $business->meta_description
             ?: Str::limit(strip_tags($business->short_description ?: $business->description ?: $business->tagline ?: ''), 155));
         $business->setAttribute('canonical_url', URL::route('businesses.show', $business->slug));

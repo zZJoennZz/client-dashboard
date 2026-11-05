@@ -1,12 +1,12 @@
 @extends('layouts.app')
 
 @section('title', 'Log in')
-@section('description', 'Log in to your Rediscover Roanoke account.')
+@section('description', 'Log in to your Argyle Buzz account.')
 
 @section('content')
     <section class="mx-auto max-w-xl px-5 py-14 sm:px-8 sm:py-20">
         <div class="rounded-xl border border-[var(--rr-border)] bg-white p-7 shadow-sm sm:p-10">
-            <p class="text-xs font-bold uppercase tracking-[0.16em] text-[var(--rr-accent)]">Rediscover Roanoke</p>
+            <p class="text-xs font-bold uppercase tracking-[0.16em] text-[var(--rr-accent)]">The Argyle Buzz</p>
             <h1 class="mt-3 text-3xl font-semibold tracking-tight text-[var(--rr-neutral-dark)]">Welcome back</h1>
             <p class="mt-2 text-sm leading-6 text-[var(--rr-neutral-mid)]">Log in to continue to your account.</p>
 

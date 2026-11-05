@@ -1,6 +1,6 @@
-# Roanoke Local Business Growth Initiative — Membership Platform
+# The Argyle Buzz — Membership Platform
 
-A membership-style web application for the **Roanoke Local Business Growth Initiative**. Local businesses pay a monthly membership fee to access marketing reports, social media promotion schedules, educational resources, event calendars, and premium marketing upsells — all through a secure, self-service portal. Program administrators manage memberships, upload reports, coordinate promotions, fulfill orders, and track program-wide impact through a dedicated admin dashboard.
+A membership-style web application for **The Argyle Buzz**, serving local businesses and community members in Argyle. Local businesses pay a monthly membership fee to access marketing reports, social media promotion schedules, educational resources, event calendars, and premium marketing upsells — all through a secure, self-service portal. Program administrators manage memberships, upload reports, coordinate promotions, fulfill orders, and track program-wide impact through a dedicated admin dashboard.
 
 ---
 
@@ -188,7 +188,7 @@ Key variables in `.env`:
 
 ```env
 # Application
-APP_NAME="Roanoke Local Business Growth Initiative"
+APP_NAME="The Argyle Buzz"
 APP_ENV=local
 APP_URL=http://localhost:8000
 
@@ -314,7 +314,7 @@ php artisan test --coverage
 The platform uses **Spatie Laravel Permission** with two roles:
 
 ### `super_admin`
-The platform owner/operator (the Roanoke initiative team).
+The platform owner/operator (The Argyle Buzz team).
 
 **Can:**
 - Read/write all businesses, reports, events, upsells, orders, metrics
@@ -474,7 +474,7 @@ php artisan queue:listen         # Process queued jobs
 
 ## License
 
-This project is proprietary software for the **Roanoke Local Business Growth Initiative**.
+This project is proprietary software for **The Argyle Buzz**.
 
 All rights reserved. Unauthorized copying, modification, or distribution is prohibited.
 

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -40,5 +41,12 @@ class EventRegistration extends Model
     public function isActive(): bool
     {
         return in_array($this->status, ['registered', 'confirmed'], true);
+    }
+
+    public function scopeCurrentlyAttended(Builder $query): Builder
+    {
+        return $query
+            ->where('status', 'attended')
+            ->whereNotNull('attended_at');
     }
 }

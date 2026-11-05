@@ -16,6 +16,8 @@ class Report extends Model
         'title',
         'description',
         'reporting_period',
+        'reporting_period_start',
+        'reporting_period_end',
         'file_name',
         'file_path',
         'file_disk',
@@ -25,11 +27,19 @@ class Report extends Model
         'visibility',
         'created_by',
         'published_at',
+        'submitted_at',
+        'review_feedback',
+        'reviewed_by',
+        'reviewed_at',
     ];
 
     protected $casts = [
         'file_size' => 'integer',
         'published_at' => 'datetime',
+        'reporting_period_start' => 'date:Y-m-d',
+        'reporting_period_end' => 'date:Y-m-d',
+        'submitted_at' => 'datetime',
+        'reviewed_at' => 'datetime',
     ];
 
     public function business(): BelongsTo
@@ -40,5 +50,10 @@ class Report extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function reviewer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reviewed_by');
     }
 }

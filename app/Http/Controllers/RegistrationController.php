@@ -163,7 +163,7 @@ class RegistrationController extends Controller implements CreatesNewUsers
         return MembershipPlan::query()->updateOrCreate(
             ['slug' => 'rediscover-roanoke'],
             [
-                'name' => 'Rediscover Roanoke Membership',
+                'name' => 'The Argyle Buzz Membership',
                 'description' => 'Local business growth initiative membership. Payment processing is not yet connected.',
                 'price' => is_numeric($configuredAmount) ? max(0, (float) $configuredAmount) : 0,
                 'currency' => 'USD',

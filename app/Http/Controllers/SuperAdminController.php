@@ -512,7 +512,7 @@ class SuperAdminController extends Controller
                 break;
 
             case 'reports':
-                $query = Report::query()->with('business')->latest('created_at');
+                $query = Report::query()->with(['business', 'creator'])->latest('created_at');
                 $mapper = fn (Report $report): array => [
                     'id' => $report->id,
                     'business_id' => $report->business_id,
@@ -520,9 +520,14 @@ class SuperAdminController extends Controller
                     'description' => $report->description,
                     'business_name' => $report->business?->company_name ?? 'Deleted business',
                     'reporting_period' => $report->reporting_period,
+                    'reporting_period_start' => $report->reporting_period_start?->toDateString(),
+                    'reporting_period_end' => $report->reporting_period_end?->toDateString(),
                     'status' => $report->status,
                     'visibility' => $report->visibility,
                     'file_name' => $report->file_name,
+                    'creator_name' => $report->creator?->email ?? 'Unknown member',
+                    'submitted_at' => $report->submitted_at?->toDateTimeString(),
+                    'review_feedback' => $report->review_feedback,
                     'published_at' => $report->published_at?->toDateString(),
                 ];
                 break;

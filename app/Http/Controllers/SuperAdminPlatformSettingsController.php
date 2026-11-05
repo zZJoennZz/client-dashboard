@@ -50,7 +50,7 @@ class SuperAdminPlatformSettingsController extends Controller
             MembershipPlan::query()->updateOrCreate(
                 ['slug' => $slug],
                 [
-                    'name' => 'Rediscover Roanoke Membership',
+                    'name' => 'The Argyle Buzz Membership',
                     'description' => 'Platform-configured membership pricing. Registration payment status remains simulated; no payment is collected.',
                     'price' => $updated['amount'] ?? 0,
                     'currency' => 'USD',

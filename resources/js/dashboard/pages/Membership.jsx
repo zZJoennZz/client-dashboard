@@ -43,7 +43,7 @@ export default function Membership({ data }) {
                 <Card><EmptyState title="No membership record found">There is currently no membership associated with your active business account.</EmptyState></Card>
             ) : (
                 <div className="max-w-3xl">
-                    <Card eyebrow="Rediscover Roanoke" title={membership.plan || 'Membership plan'}>
+                    <Card eyebrow="The Argyle Buzz" title={membership.plan || 'Membership plan'}>
                         <div className="mt-4 flex flex-wrap items-center gap-3">
                             <Status tone={membership.status === 'active' ? 'success' : 'neutral'}>{membership.status}</Status>
                             <span className="text-sm text-[var(--rr-neutral-mid)]">Started {membership.start_date || 'date not recorded'}</span>

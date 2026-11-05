@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('title', 'Get in touch')
-@section('description', 'Connect with Rediscover Roanoke about membership, the local directory, and growing our local economy.')
+@section('description', 'Connect with The Argyle Buzz about membership, the local directory, and growing our local economy.')
 
 @section('content')
     <section class="bg-[var(--rr-accent-light)]">
@@ -23,7 +23,7 @@
                 </div>
                 <div>
                     <dt class="text-xs font-bold uppercase tracking-[0.14em] text-[var(--rr-neutral-mid)]">Based in</dt>
-                    <dd class="mt-1 text-sm text-[var(--rr-primary)]">Roanoke Valley, Virginia</dd>
+                    <dd class="mt-1 text-sm text-[var(--rr-primary)]">Argyle and the surrounding community</dd>
                 </div>
                 <div>
                     <dt class="text-xs font-bold uppercase tracking-[0.14em] text-[var(--rr-neutral-mid)]">Response time</dt>
