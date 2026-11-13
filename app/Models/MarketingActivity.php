@@ -12,37 +12,24 @@ class MarketingActivity extends Model
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
-        'business_id',
-        'scope',
         'title',
         'description',
         'promotion_type',
-        'platform',
+        'platforms',
         'caption',
         'member_description',
-        'published_url',
         'scheduled_at',
         'completed_at',
         'status',
         'notes',
-        'responsible_admin_id',
         'created_by',
     ];
 
     protected $casts = [
+        'platforms' => 'array',
         'scheduled_at' => 'datetime',
         'completed_at' => 'datetime',
     ];
-
-    public function business(): BelongsTo
-    {
-        return $this->belongsTo(Business::class, 'business_id');
-    }
-
-    public function responsibleAdmin(): BelongsTo
-    {
-        return $this->belongsTo(User::class, 'responsible_admin_id');
-    }
 
     public function creator(): BelongsTo
     {

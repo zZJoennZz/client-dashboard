@@ -9,7 +9,6 @@ use App\Models\Membership;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Report;
-use App\Models\ReportAIAnalysis;
 use App\Models\Service;
 use App\Models\User;
 use App\Services\Ai\GeminiReportAnalyzer;
@@ -404,23 +403,20 @@ class SuperAdminWorkflowsTest extends TestCase
         $business = Business::factory()->create();
 
         $activity = $this->actingAs($admin)->postJson(route('super-admin.marketing.store'), [
-            'business_id' => $business->id,
             'title' => 'Summer promotion',
-            'promotion_type' => 'social post',
-            'platform' => 'Facebook',
+            'promotion_type' => 'Social Media Post',
+            'platforms' => [['platform' => 'Facebook', 'url' => null]],
             'scheduled_at' => now()->addDay()->toDateTimeString(),
             'status' => 'scheduled',
             'caption' => 'Visit our store.',
         ])->assertCreated()->json();
 
         $this->putJson(route('super-admin.marketing.update', $activity['id']), [
-            'business_id' => $business->id,
             'title' => 'Summer promotion',
-            'promotion_type' => 'social post',
-            'platform' => 'Facebook',
+            'promotion_type' => 'Social Media Post',
+            'platforms' => [['platform' => 'Facebook', 'url' => 'https://example.test/post/1']],
             'status' => 'completed',
             'completed_at' => now()->toDateTimeString(),
-            'published_url' => 'https://example.test/post/1',
         ])->assertOk()->assertJsonPath('status', 'completed');
 
         $serviceResponse = $this->postJson(route('super-admin.services.store'), [

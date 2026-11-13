@@ -23,7 +23,7 @@ export default function Overview({ data, navigate }) {
         { title: 'Reports', description: 'Published business reports', href: '/dashboard/reports', count: data.reports.length, icon: '▧' },
         { title: 'Events', description: 'Upcoming published events', href: '/dashboard/events', count: data.events.length, icon: '▦' },
         { title: 'Resource library', description: 'Guides and member resources', href: '/dashboard/resources', count: data.resources.length, icon: '▱' },
-        { title: 'Marketing tools', description: 'Scheduled and completed activity', href: '/dashboard/marketing', count: data.marketing.length, icon: '✳' },
+        { title: 'Marketing tools', description: 'Scheduled and completed promotions', href: '/dashboard/marketing', count: data.marketing_activities?.length ?? 0, icon: '✳' },
     ];
 
     return (

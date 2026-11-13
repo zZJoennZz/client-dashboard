@@ -2,56 +2,24 @@
 
 namespace Database\Seeders;
 
-use App\Models\Business;
 use App\Models\MarketingActivity;
 use App\Models\Resource;
 use App\Models\ResourceVersion;
-use App\Models\User;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\Hash;
 
 class MarketingContentSeeder extends Seeder
 {
     public function run(): void
     {
-        $businesses = collect([
-            ['slug' => 'blue-ridge-books', 'company_name' => 'Blue Ridge Books', 'contact_name' => 'Jordan Lee', 'contact_email' => 'jordan@blueridgebooks.example'],
-            ['slug' => 'roanoke-river-coffee', 'company_name' => 'Roanoke River Coffee', 'contact_name' => 'Casey Morgan', 'contact_email' => 'casey@rivercoffee.example'],
-            ['slug' => 'market-street-goods', 'company_name' => 'Market Street Goods', 'contact_name' => 'Taylor Reed', 'contact_email' => 'taylor@marketstreetgoods.example'],
-        ])->map(function (array $attributes): Business {
-            $business = Business::query()->firstOrCreate(['slug' => $attributes['slug']], $attributes + [
-                'status' => 'active', 'is_active' => true, 'is_published' => true,
-                'directory_visibility' => 'public', 'published_at' => now(), 'settings' => [],
-            ]);
-            $user = User::query()->firstOrCreate(['email' => $attributes['contact_email']], [
-                'password' => Hash::make('password'), 'email_verified_at' => now(),
-            ]);
-            if (! $business->users()->whereKey($user->id)->exists()) {
-                $business->users()->attach($user->id, [
-                    'role' => 'owner', 'access_level' => 'owner', 'status' => 'active', 'is_primary' => true,
-                ]);
-            }
-
-            return $business;
-        });
-
-        foreach ($businesses->take(2) as $index => $business) {
-            MarketingActivity::query()->firstOrCreate(
-                ['business_id' => $business->id, 'title' => $index === 0 ? 'Summer reading spotlight' : 'Local coffee feature'],
-                [
-                    'scope' => 'business', 'promotion_type' => 'Social media highlight',
-                    'platform' => $index === 0 ? 'City Facebook' : 'City Instagram',
-                    'member_description' => 'Your business will be featured in an upcoming community post.',
-                    'scheduled_at' => now()->addDays(14 + ($index * 7)), 'status' => 'scheduled',
-                ],
-            );
-        }
-
         MarketingActivity::query()->firstOrCreate(
-            ['scope' => 'program', 'title' => 'Small Business Saturday campaign'],
+            ['title' => 'Community promotion campaign'],
             [
-                'business_id' => null, 'promotion_type' => 'Campaign', 'platform' => 'Program-wide',
-                'member_description' => 'A coordinated holiday campaign inviting members to share local shopping offers.',
+                'promotion_type' => 'Campaign',
+                'platforms' => [
+                    ['platform' => 'Facebook', 'url' => null],
+                    ['platform' => 'Instagram', 'url' => null],
+                ],
+                'member_description' => 'A coordinated community campaign across social platforms.',
                 'scheduled_at' => now()->addMonth(), 'status' => 'planned',
             ],
         );

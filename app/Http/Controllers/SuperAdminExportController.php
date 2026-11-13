@@ -21,7 +21,9 @@ class SuperAdminExportController extends Controller
         abort_unless(in_array($type, ['businesses', 'members', 'memberships', 'registrants', 'marketing', 'orders', 'payments'], true), 404);
 
         $filters = $request->validate([
-            'business_id' => ['nullable', 'integer', 'exists:clients,id'],
+            'business_id' => $type === 'marketing'
+                ? ['prohibited']
+                : ['nullable', 'integer', 'exists:clients,id'],
             'status' => ['nullable', 'string', 'max:60'],
             'payment_status' => ['nullable', 'string', 'max:60'],
             'search' => ['nullable', 'string', 'max:150'],
@@ -151,17 +153,18 @@ class SuperAdminExportController extends Controller
 
     private function marketing(array $filters): array
     {
-        $query = MarketingActivity::query()->with(['business', 'responsibleAdmin.profile']);
-        $this->filterBusinessAndDate($query, $filters, 'scheduled_at');
+        $query = MarketingActivity::query();
+        if (! empty($filters['from'])) $query->whereDate('scheduled_at', '>=', $filters['from']);
+        if (! empty($filters['to'])) $query->whereDate('scheduled_at', '<=', $filters['to']);
         if (! empty($filters['status'])) $query->where('status', $filters['status']);
         if (! empty($filters['search'])) $query->where('title', 'like', '%'.$filters['search'].'%');
         $rows = $query->orderBy('id')->get()->map(fn (MarketingActivity $activity): array => [
-            $activity->business?->company_name, $activity->title, $activity->promotion_type, $activity->platform,
+            $activity->title, $activity->promotion_type,
+            collect($activity->platforms ?? [])->map(fn (array $platform): string => $platform['platform'].(! empty($platform['url']) ? ': '.$platform['url'] : ''))->join('; '),
             $activity->status, $activity->scheduled_at?->toDateTimeString(), $activity->completed_at?->toDateTimeString(),
-            $activity->responsibleAdmin?->profile?->full_name, $activity->published_url,
         ])->all();
 
-        return ['marketing-activities.csv', ['business', 'title', 'type', 'platform', 'status', 'scheduled_at', 'completed_at', 'assigned_staff', 'published_url'], $rows];
+        return ['marketing-activities.csv', ['title', 'promotion_type', 'platforms_and_post_urls', 'status', 'scheduled_at', 'completed_at'], $rows];
     }
 
     private function orders(array $filters): array
