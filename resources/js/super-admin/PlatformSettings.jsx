@@ -63,7 +63,7 @@ export default function PlatformSettings({ url, updateUrl, requestJson }) {
     return (
         <div className="space-y-6">
             <header>
-                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--rr-accent)]">Service provider control</p>
+                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--rr-accent)]">Platform control</p>
                 <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">Platform settings</h2>
                 <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--rr-neutral-mid)]">Manage platform-wide settings here. These changes apply across the public site and all member businesses.</p>
             </header>
@@ -93,7 +93,7 @@ export default function PlatformSettings({ url, updateUrl, requestJson }) {
                         <button type="button" onClick={load} disabled={saving} className="min-h-11 rounded-lg border border-[var(--rr-border)] px-4 text-sm font-semibold hover:bg-[var(--rr-neutral-light)] disabled:opacity-50">Reload</button>
                     </div>
                 </form>
-                <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">Currency symbol is controlled by deployment configuration. Registration continues to use the existing simulated paid status. This is a placeholder only; no payment is verified or collected. Changing this price does not alter prior membership plan records.</p>
+                {/* <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">Currency symbol is controlled by deployment configuration. Registration continues to use the existing simulated paid status. This is a placeholder only; no payment is verified or collected. Changing this price does not alter prior membership plan records.</p> */}
             </section>
             <section className="rounded-xl border border-dashed border-[var(--rr-border)] bg-white p-5 sm:p-6">
                 <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--rr-neutral-mid)]">Later phase</p>

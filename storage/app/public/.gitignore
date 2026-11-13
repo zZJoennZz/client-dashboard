@@ -1,2 +1,6 @@
 *
 !.gitignore
+!branding/
+!branding/the-argyle-buzz-logo.png
+!img/
+!img/Hero Section.jpg

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Report;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -59,12 +60,25 @@ class MemberReportController extends Controller
 
     public function download(Request $request, Report $report): StreamedResponse
     {
-        abort_unless($report->created_by === $request->user()->id, 404);
+        $user = $request->user();
+        $hasActiveBusinessAccess = $user->businessAssociations()
+            ->where('business_id', $report->business_id)
+            ->where('status', 'active')
+            ->exists();
+        $isBusinessAdministrator = $user->businessAssociations()
+            ->where('business_id', $report->business_id)
+            ->where('status', 'active')
+            ->where(fn (Builder $roles) => $roles
+                ->whereIn('role', ['owner', 'admin'])
+                ->orWhereIn('access_level', ['owner', 'admin']))
+            ->exists();
+
         abort_unless(
-            $request->user()->businesses()
-                ->whereKey($report->business_id)
-                ->wherePivot('status', 'active')
-                ->exists(),
+            $user->isSystemAdministrator()
+            || ($hasActiveBusinessAccess && (
+                $report->created_by === $user->id
+                || $isBusinessAdministrator
+            )),
             404
         );
         abort_if(! $report->file_path || ! Storage::disk($report->file_disk)->exists($report->file_path), 404);

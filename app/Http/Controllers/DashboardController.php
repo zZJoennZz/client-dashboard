@@ -14,13 +14,18 @@ use App\Models\User;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 
 class DashboardController extends Controller
 {
-    public function __invoke(Request $request): View
+    public function __invoke(Request $request): View|RedirectResponse
     {
+        if ($request->user()?->isSystemAdministrator()) {
+            return redirect()->route('super-admin.spa');
+        }
+
         return view('dashboard.index');
     }
 
@@ -28,8 +33,11 @@ class DashboardController extends Controller
     {
         /** @var User $user */
         $user = $request->user();
+        abort_if($user->isAdministrator(), 403);
         $isSuperAdmin = $user->isSuperAdmin();
-        $user->loadMissing('profile');
+        $user->loadMissing(['profile', 'dashboardModulePermissions']);
+        $moduleAccess = $user->dashboardModuleAccess();
+        $canRead = fn (string $module): bool => $moduleAccess[$module]['read'];
 
         $businesses = $isSuperAdmin
             ? Business::query()
@@ -48,6 +56,14 @@ class DashboardController extends Controller
                 ?? $businesses->first());
         $businessIds = $businesses->modelKeys();
         $businessNames = $businesses->pluck('company_name', 'id');
+        $eventBusinessOptions = ! $isSuperAdmin && $moduleAccess['events']['read'] && $moduleAccess['events']['write']
+            ? $businesses
+                ->filter(fn (Business $item): bool => in_array($item->pivot->role, ['owner', 'admin'], true)
+                    || in_array($item->pivot->access_level, ['owner', 'admin'], true))
+                ->map(fn (Business $item): array => ['id' => $item->id, 'name' => $item->company_name])
+                ->values()
+            : collect();
+        $managedEventBusinessIds = $eventBusinessOptions->pluck('id')->all();
 
         $reportsQuery = Report::query()
             ->whereIn('business_id', $businessIds)
@@ -70,7 +86,6 @@ class DashboardController extends Controller
 
         $reportSubmissions = Report::query()
             ->where('created_by', $user->id)
-            ->whereIn('status', ['pending_review', 'rejected'])
             ->latest('submitted_at')
             ->get(['id', 'business_id', 'title', 'description', 'reporting_period', 'reporting_period_start', 'reporting_period_end', 'status', 'review_feedback', 'submitted_at', 'reviewed_at', 'file_name'])
             ->map(function (Report $report) use ($businessNames): array {
@@ -81,12 +96,23 @@ class DashboardController extends Controller
             });
 
         $eventsQuery = Event::query()
-            ->whereIn('business_id', $businessIds)
+            ->with('business:id,company_name')
             ->orderBy('starts_at');
         if (! $isSuperAdmin) {
-            $eventsQuery->where('is_published', true)
-                ->whereIn('status', ['published', 'scheduled'])
-                ->where('ends_at', '>=', now());
+            $eventsQuery->where(function (Builder $query) use ($managedEventBusinessIds): void {
+                $query->where(function (Builder $published): void {
+                    $published->where('is_published', true)
+                        ->whereIn('status', ['published', 'scheduled'])
+                        ->where('ends_at', '>=', now());
+                })->orWhere(function (Builder $draft) use ($managedEventBusinessIds): void {
+                    $draft->whereIn('business_id', $managedEventBusinessIds)
+                        ->where('status', 'draft')
+                        ->where('is_published', false);
+                });
+            });
+            if ($businessIds === []) {
+                $eventsQuery->whereRaw('1 = 0');
+            }
         }
         $events = $eventsQuery
             ->withCount(['registrations as active_registrations' => fn (Builder $query) => $query->whereIn('status', ['registered', 'confirmed'])])
@@ -98,17 +124,23 @@ class DashboardController extends Controller
                 ->whereIn('event_id', $events->modelKeys())
                 ->get()
                 ->keyBy('event_id');
-        $events = $events->map(function (Event $event) use ($businessNames, $registrations, $isSuperAdmin): array {
+        $events = $events->map(function (Event $event) use ($businessNames, $registrations, $isSuperAdmin, $managedEventBusinessIds): array {
             $registration = $registrations->get($event->id);
-            $record = $this->withBusinessName($event->toArray(), $businessNames);
+            $record = $event->toArray();
+            unset($record['business']);
+            $record = $this->withBusinessName($record, $businessNames);
+            $record['business_name'] = $event->business?->company_name;
             $record['registration'] = $registration?->only(['id', 'status']);
             $record['registration_url'] = route('dashboard.events.register', $event);
             $record['cancellation_url'] = $registration ? route('dashboard.events.cancel', $registration) : null;
             $record['can_register'] = ! $isSuperAdmin
+                && $event->is_published
+                && in_array($event->status, ['published', 'scheduled'], true)
                 && $event->registration_enabled
                 && (! $event->registration_deadline || $event->registration_deadline->isFuture())
                 && ($event->capacity === null || $event->active_registrations < $event->capacity)
                 && ! in_array($registration?->status, ['registered', 'confirmed'], true);
+            $record['can_edit'] = in_array($event->business_id, $managedEventBusinessIds, true);
 
             return $record;
         });
@@ -159,12 +191,12 @@ class DashboardController extends Controller
 
                 return $this->withBusinessName($record, $businessNames);
             });
-            $highlights = $marketing->where('scope', 'business')->values();
-            $programActivities = $marketing->where('scope', 'program')->values();
+        $highlights = $marketing->where('scope', 'business')->values();
+        $programActivities = $marketing->where('scope', 'program')->values();
 
-        $businessData = $businesses->map(
-            fn (Business $item): array => $this->businessData($item, $isSuperAdmin)
-        );
+        $businessData = $canRead('business') ? $businesses->map(
+            fn (Business $item): array => $this->businessData($item, $isSuperAdmin, $canRead('membership'))
+        ) : collect();
         $membership = $business?->memberships->first();
         $activity = MemberActivity::query()
             ->with('business')
@@ -182,11 +214,22 @@ class DashboardController extends Controller
                 'subject' => $item->subject_label,
                 'business_name' => $item->business?->company_name,
                 'created_at' => $item->created_at,
-            ]);
+            ])
+            ->reject(function (array $item) use ($canRead): bool {
+                $module = match (true) {
+                    str_contains($item['type'], 'report') => 'reports',
+                    str_contains($item['type'], 'resource') => 'resources',
+                    str_contains($item['type'], 'event') => 'events',
+                    str_contains($item['type'], 'business') => 'business',
+                    default => 'overview',
+                };
+
+                return ! $canRead($module);
+            })
+            ->values();
         $participationQuery = EventRegistration::query()
             ->with(['event.business'])
-            ->where('user_id', $user->id)
-            ->whereHas('event', fn (Builder $query) => $query->whereIn('business_id', $businessIds));
+            ->where('user_id', $user->id);
         $participation = $participationQuery
             ->latest('registered_at')
             ->limit(30)
@@ -202,14 +245,11 @@ class DashboardController extends Controller
                 'attended_at' => $registration->attended_at,
             ]);
         $engagementRegistrations = EventRegistration::query()
-            ->where('user_id', $user->id)
-            ->whereHas('event', fn (Builder $query) => $query
-                ->whereIn('business_id', $businessIds));
+            ->where('user_id', $user->id);
 
         $attendanceHistory = MemberActivity::query()
             ->where('user_id', $user->id)
             ->where('activity_type', 'event_attended')
-            ->whereIn('business_id', $businessIds)
             ->latest()
             ->limit(30)
             ->get(['id', 'event_id', 'business_id', 'subject_label', 'created_at'])
@@ -223,38 +263,45 @@ class DashboardController extends Controller
         return response()->json([
             'user' => [
                 'name' => $user->profile?->full_name ?? '',
-                'first_name' => $user->profile?->first_name,
-                'last_name' => $user->profile?->last_name,
-                'phone' => $user->profile?->phone,
-                'job_title' => $user->profile?->job_title,
-                'address_line_1' => $user->profile?->address_line_1,
-                'address_line_2' => $user->profile?->address_line_2,
-                'city' => $user->profile?->city,
-                'state' => $user->profile?->state,
-                'postal_code' => $user->profile?->postal_code,
-                'country' => $user->profile?->country,
+                ...($canRead('settings') ? [
+                    'first_name' => $user->profile?->first_name,
+                    'last_name' => $user->profile?->last_name,
+                    'phone' => $user->profile?->phone,
+                    'job_title' => $user->profile?->job_title,
+                    'address_line_1' => $user->profile?->address_line_1,
+                    'address_line_2' => $user->profile?->address_line_2,
+                    'city' => $user->profile?->city,
+                    'state' => $user->profile?->state,
+                    'postal_code' => $user->profile?->postal_code,
+                    'country' => $user->profile?->country,
+                    'email_announcements_opt_in' => (bool) $user->profile?->email_announcements_opt_in,
+                ] : []),
                 'email' => $user->email,
                 'account_type' => $user->account_type,
                 'is_super_admin' => $isSuperAdmin,
-                'email_announcements_opt_in' => (bool) $user->profile?->email_announcements_opt_in,
+                'dashboard_role' => $isSuperAdmin ? 'super_administrator' : 'member',
             ],
-            'business' => $business ? $this->businessData($business, false) : null,
+            'module_permissions' => $moduleAccess,
+            'business_category_options' => config('business_categories.standard'),
+            'event_business_options' => $eventBusinessOptions,
+            'business' => $canRead('business') && $business
+                ? $this->businessData($business, false, $canRead('membership'))
+                : null,
             'businesses' => $businessData,
-            'membership' => $membership ? $this->membershipData($membership) : null,
-            'reports' => $reports,
-            'report_submissions' => $reportSubmissions,
-            'events' => $events,
-            'resources' => $resources,
-            'marketing' => $marketing,
-            'highlights' => $highlights,
-            'program_activities' => $programActivities,
+            'membership' => $canRead('membership') && $membership ? $this->membershipData($membership) : null,
+            'reports' => $canRead('reports') ? $reports : [],
+            'report_submissions' => $canRead('reports') ? $reportSubmissions : [],
+            'events' => $canRead('events') ? $events : [],
+            'resources' => $canRead('resources') ? $resources : [],
+            'marketing' => $canRead('marketing') ? $marketing : [],
+            'highlights' => $canRead('marketing') ? $highlights : [],
+            'program_activities' => $canRead('marketing') ? $programActivities : [],
             'activity' => $activity,
-            'participation' => $participation,
-            'attendance_history' => $attendanceHistory,
-            'engagement' => [
+            'participation' => $canRead('events') ? $participation : [],
+            'attendance_history' => $canRead('events') ? $attendanceHistory : [],
+            'engagement' => $canRead('events') ? [
                 'rsvps_30_days' => MemberActivity::query()
                     ->where('user_id', $user->id)
-                    ->whereIn('business_id', $businessIds)
                     ->whereIn('activity_type', ['event_rsvp', 'event_registered'])
                     ->where('created_at', '>=', now()->subDays(30)->startOfDay())
                     ->count(),
@@ -268,14 +315,14 @@ class DashboardController extends Controller
                 'recorded_attendance' => (clone $engagementRegistrations)
                     ->currentlyAttended()
                     ->count(),
-            ],
+            ] : ['rsvps_30_days' => 0, 'upcoming_registered' => 0, 'recorded_attendance' => 0],
         ]);
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function businessData(Business $business, bool $isSuperAdmin): array
+    private function businessData(Business $business, bool $isSuperAdmin, bool $canReadMembership = true): array
     {
         $membership = $business->memberships->first();
         $category = $business->categories->firstWhere('pivot.is_primary', true)?->name
@@ -332,7 +379,7 @@ class DashboardController extends Controller
             'public_url' => $business->is_published && $business->directory_visibility === 'public'
                 ? route('businesses.show', $business->slug)
                 : null,
-            'membership' => $membership ? $this->membershipData($membership) : null,
+            'membership' => $canReadMembership && $membership ? $this->membershipData($membership) : null,
         ];
     }
 

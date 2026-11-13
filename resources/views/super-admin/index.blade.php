@@ -5,13 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="theme-color" content="#F9FAFB">
-    <title>Service Provider · The Argyle Buzz</title>
-    <meta name="description" content="Platform-wide service provider administration for The Argyle Buzz.">
+    <title>{{ $roleLabel }} · The Argyle Buzz</title>
+    <meta name="description" content="Platform-wide system administration for The Argyle Buzz.">
     @vite(['resources/css/app.css', 'resources/js/super-admin/main.jsx'])
 </head>
 <body class="min-h-screen bg-[var(--rr-background)] font-sans text-[var(--rr-neutral-dark)] antialiased">
     <div
         id="super-admin"
+        data-module-access='@json($moduleAccess)'
+        data-role-label="{{ $roleLabel }}"
+        data-can-manage-system-roles="{{ $canManageSystemRoles ? 'true' : 'false' }}"
         data-overview-url="{{ route('super-admin.overview') }}"
         data-settings-url="{{ route('super-admin.settings.show') }}"
         data-settings-update-url="{{ route('super-admin.settings.membership-pricing.update') }}"

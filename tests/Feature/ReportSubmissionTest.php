@@ -162,7 +162,8 @@ class ReportSubmissionTest extends TestCase
         $this->assertNotNull($submission->published_at);
 
         $this->actingAs($member)->getJson(route('dashboard.data'))->assertOk()
-            ->assertJsonFragment(['id' => $submission->id, 'title' => $submission->title]);
+            ->assertJsonFragment(['id' => $submission->id, 'title' => $submission->title])
+            ->assertJsonPath('report_submissions.0.id', $submission->id);
     }
 
     public function test_pending_and_rejected_reports_are_not_in_the_published_library(): void
@@ -205,13 +206,67 @@ class ReportSubmissionTest extends TestCase
             ->assertOk();
     }
 
+    public function test_private_submission_downloads_are_limited_to_uploader_business_admin_and_super_admin(): void
+    {
+        Storage::fake('local');
+        $business = Business::factory()->create();
+        $otherBusiness = Business::factory()->create();
+        $uploader = User::factory()->create();
+        $peer = User::factory()->create();
+        $businessAdmin = User::factory()->create();
+        $otherBusinessAdmin = User::factory()->create();
+        $superAdmin = User::factory()->superAdmin()->create();
+
+        $this->attachBusinessUser($business, $uploader, 'member');
+        $this->attachBusinessUser($business, $peer, 'member');
+        $this->attachBusinessUser($business, $businessAdmin, 'admin');
+        $this->attachBusinessUser($otherBusiness, $otherBusinessAdmin, 'admin');
+
+        $path = 'member/reports/private-access.pdf';
+        Storage::disk('local')->put($path, 'private report');
+        $report = Report::factory()->create([
+            'business_id' => $business->id,
+            'created_by' => $uploader->id,
+            'file_path' => $path,
+            'file_disk' => 'local',
+            'status' => 'pending_review',
+            'visibility' => 'private',
+        ]);
+
+        $this->actingAs($peer)
+            ->get(route('dashboard.reports.submissions.download', $report))
+            ->assertNotFound();
+        $this->actingAs($otherBusinessAdmin)
+            ->get(route('dashboard.reports.submissions.download', $report))
+            ->assertNotFound();
+        $this->actingAs($uploader)
+            ->get(route('dashboard.reports.submissions.download', $report))
+            ->assertOk();
+        $this->actingAs($businessAdmin)
+            ->get(route('dashboard.reports.submissions.download', $report))
+            ->assertOk();
+        $this->actingAs($superAdmin)
+            ->get(route('dashboard.reports.submissions.download', $report))
+            ->assertOk();
+    }
+
+    private function attachBusinessUser(Business $business, User $user, string $role): void
+    {
+        $business->users()->attach($user->id, [
+            'role' => $role,
+            'access_level' => $role,
+            'status' => 'active',
+            'is_primary' => false,
+        ]);
+    }
+
     private function memberWithBusiness(): array
     {
         $member = User::factory()->create();
         $business = Business::factory()->create();
         $business->users()->attach($member->id, [
-            'role' => 'owner',
-            'access_level' => 'owner',
+            'role' => 'member',
+            'access_level' => 'member',
             'status' => 'active',
             'is_primary' => true,
         ]);

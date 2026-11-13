@@ -150,7 +150,10 @@ class DashboardSpaTest extends TestCase
             ->assertJsonFragment(['title' => 'Scheduled member activity'])
             ->assertJsonMissing(['title' => 'Private draft report'])
             ->assertJsonMissing(['title' => 'Another business report'])
-            ->assertJsonMissing(['title' => 'Other business event'])
+            ->assertJsonFragment([
+                'title' => 'Other business event',
+                'business_name' => 'Private Other Business',
+            ])
             ->assertJsonMissing(['title' => 'Other business resource'])
             ->assertJsonMissing(['title' => 'Private resource'])
             ->assertJsonMissing(['title' => 'Other business activity'])
@@ -161,6 +164,11 @@ class DashboardSpaTest extends TestCase
 
     public function test_dashboard_data_handles_an_account_without_an_associated_business(): void
     {
+        Event::factory()->create([
+            'status' => 'published',
+            'is_published' => true,
+        ]);
+
         $this->actingAs(User::factory()->create())
             ->getJson(route('dashboard.data'))
             ->assertOk()
@@ -199,12 +207,13 @@ class DashboardSpaTest extends TestCase
             ->assertOk()
             ->assertJsonPath('business.can_manage_profile', true)
             ->assertJsonPath('business.is_published', false)
-            ->assertJsonPath('business.image_count', 0);
+            ->assertJsonPath('business.image_count', 0)
+            ->assertJsonPath('business_category_options', config('business_categories.standard'));
 
         $this->putJson(route('dashboard.businesses.profile.update', $business), [
             'company_name' => 'New Business Name',
             'category' => 'Retail',
-            'additional_categories' => ['Arts'],
+            'additional_categories' => ['Arts & Entertainment', 'Custom service'],
             'tagline' => 'A new local favorite',
             'contact_email' => 'hello@example.test',
             'website' => 'https://example.test',
@@ -212,6 +221,8 @@ class DashboardSpaTest extends TestCase
         ])->assertOk();
         $this->assertSame('new-business-name', $business->fresh()->slug);
         $this->assertDatabaseHas('business_categories', ['name' => 'Retail']);
+        $this->assertDatabaseHas('business_categories', ['name' => 'Arts & Entertainment']);
+        $this->assertDatabaseHas('business_categories', ['name' => 'Custom service']);
         $this->assertDatabaseHas('business_business_category', ['business_id' => $business->id]);
 
         $this->patchJson(route('dashboard.businesses.publication', $business), ['is_published' => true])
@@ -504,7 +515,9 @@ class DashboardSpaTest extends TestCase
         foreach (['memberships', 'content', 'reports', 'events', 'marketing', 'orders', 'services', 'billing', 'analytics', 'audit'] as $section) {
             $this->getJson(route('super-admin.workspace', ['section' => $section]))
                 ->assertOk()
-                ->assertJsonPath('meta.total', 1);
+                ->assertJsonPath('meta.total', 1)
+                ->assertJsonPath('business_options.0.id', $business->id)
+                ->assertJsonPath('business_options.0.name', $business->company_name);
         }
 
         $response = $this->getJson(route('super-admin.workspace', ['section' => 'reports']))->assertOk();

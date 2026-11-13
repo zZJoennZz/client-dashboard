@@ -12,7 +12,7 @@ class LoginResponse implements LoginResponseContract
             return response()->json(['two_factor' => false]);
         }
 
-        if ($request->user()?->isSuperAdmin()) {
+        if ($request->user()?->isSystemAdministrator()) {
             return redirect()->route('super-admin.spa');
         }
 

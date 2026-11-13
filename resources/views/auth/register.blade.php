@@ -45,10 +45,24 @@
                         </div>
                         <div>
                             <label for="category" class="mb-2 block text-sm font-semibold">Business category <span aria-hidden="true">*</span></label>
-                            <input id="category" name="category" type="text" value="{{ old('category') }}" maxlength="100" required placeholder="e.g. Food & drink"
+                            <select id="category" name="category" required
                                 @error('category') aria-invalid="true" aria-describedby="category-error" @enderror
-                                class="min-h-11 w-full rounded-lg border border-[var(--rr-border)] bg-[var(--rr-background)] px-4 py-3 text-sm placeholder:text-[var(--rr-neutral-mid)] focus:border-[var(--rr-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--rr-primary)]/20">
+                                class="min-h-11 w-full rounded-lg border border-[var(--rr-border)] bg-[var(--rr-background)] px-4 py-3 text-sm focus:border-[var(--rr-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--rr-primary)]/20">
+                                <option value="" disabled @selected(old('category') === null)>Choose a category</option>
+                                @foreach (config('business_categories.standard') as $categoryOption)
+                                    <option value="{{ $categoryOption }}" @selected(old('category') === $categoryOption)>{{ $categoryOption }}</option>
+                                @endforeach
+                                <option value="Other" @selected(old('category') === 'Other')>Other</option>
+                            </select>
                             @error('category')<p id="category-error" class="mt-2 text-sm text-red-700">{{ $message }}</p>@enderror
+                        </div>
+                        <div id="category-other-field" @if (old('category') !== 'Other') hidden @endif>
+                            <label for="category_other" class="mb-2 block text-sm font-semibold">Your business category <span aria-hidden="true">*</span></label>
+                            <input id="category_other" name="category_other" type="text" value="{{ old('category_other') }}" maxlength="100"
+                                @if (old('category') === 'Other') required @endif
+                                @error('category_other') aria-invalid="true" aria-describedby="category-other-error" @enderror
+                                class="min-h-11 w-full rounded-lg border border-[var(--rr-border)] bg-[var(--rr-background)] px-4 py-3 text-sm focus:border-[var(--rr-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--rr-primary)]/20">
+                            @error('category_other')<p id="category-other-error" class="mt-2 text-sm text-red-700">{{ $message }}</p>@enderror
                         </div>
                         <div>
                             <label for="website" class="mb-2 block text-sm font-semibold">Website</label>
@@ -153,4 +167,19 @@
             <p class="mt-6 text-center text-sm text-[var(--rr-neutral-mid)]">Already registered? <a href="{{ route('login') }}" class="font-semibold text-[var(--rr-primary)] underline decoration-[var(--rr-highlight)] underline-offset-4">Log in</a></p>
         </div>
     </section>
+    <script>
+        const categorySelect = document.getElementById('category');
+        const otherCategoryField = document.getElementById('category-other-field');
+        const otherCategoryInput = document.getElementById('category_other');
+
+        const toggleOtherCategory = () => {
+            const isOther = categorySelect.value === 'Other';
+            otherCategoryField.hidden = !isOther;
+            otherCategoryInput.required = isOther;
+            if (!isOther) otherCategoryInput.value = '';
+        };
+
+        categorySelect.addEventListener('change', toggleOtherCategory);
+        toggleOtherCategory();
+    </script>
 @endsection

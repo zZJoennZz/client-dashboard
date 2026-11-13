@@ -8,6 +8,7 @@ use App\Models\BusinessMetric;
 use App\Models\Event;
 use App\Models\EventRegistration;
 use App\Models\MarketingActivity;
+use App\Models\MemberActivity;
 use App\Models\Membership;
 use App\Models\Order;
 use App\Models\OrderItem;
@@ -21,13 +22,18 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class SuperAdminController extends Controller
 {
-    public function __invoke(): View
+    public function __invoke(Request $request): View
     {
-        return view('super-admin.index');
+        return view('super-admin.index', [
+            'moduleAccess' => $request->user()->systemAdminModuleAccess(),
+            'roleLabel' => $request->user()->isSuperAdmin() ? 'Super Administrator' : 'Administrator',
+            'canManageSystemRoles' => $request->user()->isSuperAdmin(),
+        ]);
     }
 
     public function overview(): JsonResponse
@@ -94,6 +100,7 @@ class SuperAdminController extends Controller
                 'businesses_unpublished' => (clone $businesses)->where('is_published', false)->count(),
                 'accounts_total' => User::query()->count(),
                 'regular_accounts' => User::query()->where('account_type', User::ACCOUNT_TYPE_REGULAR)->count(),
+                'administrator_accounts' => User::query()->where('account_type', User::ACCOUNT_TYPE_ADMINISTRATOR)->count(),
                 'super_admins' => User::query()->where('account_type', User::ACCOUNT_TYPE_SUPER_ADMIN)->count(),
                 'new_accounts_30_days' => User::query()->where('created_at', '>=', now()->subDays(30))->count(),
                 'incomplete_businesses' => $incompleteBusinesses,
@@ -394,12 +401,12 @@ class SuperAdminController extends Controller
     {
         $filters = $request->validate([
             'search' => ['nullable', 'string', 'max:150'],
-            'account_type' => ['nullable', 'in:regular,super_admin'],
+            'account_type' => ['nullable', 'in:regular,administrator,super_admin'],
             'business_id' => ['nullable', 'integer', 'exists:clients,id'],
             'page' => ['nullable', 'integer', 'min:1'],
         ]);
 
-        $query = User::query()->with(['profile', 'businesses' => fn ($businesses) => $businesses
+        $query = User::query()->with(['profile', 'dashboardModulePermissions', 'businesses' => fn ($businesses) => $businesses
             ->wherePivot('status', 'active')
             ->select('clients.id', 'company_name')]);
 
@@ -430,19 +437,119 @@ class SuperAdminController extends Controller
                 'id' => $user->id,
                 'name' => $user->profile?->full_name ?? 'Profile incomplete',
                 'email' => $user->email,
+                'first_name' => $user->profile?->first_name,
+                'last_name' => $user->profile?->last_name,
+                'phone' => $user->profile?->phone,
+                'job_title' => $user->profile?->job_title,
                 'account_type' => $user->account_type,
+                'role_key' => $this->accountRole($user),
+                'role' => $this->accountRoleLabel($user),
                 'is_active' => $user->is_active,
                 'created_at' => $user->created_at,
                 'businesses' => $user->businesses->map(fn (Business $business): array => [
                     'id' => $business->id,
                     'name' => $business->company_name,
+                    'role' => $this->businessRole($business),
+                    'is_administrator' => in_array($business->pivot->role, ['owner', 'admin'], true)
+                        || in_array($business->pivot->access_level, ['owner', 'admin'], true),
                 ]),
+                'permissions' => $this->accountPermissions($user),
             ]),
             'meta' => [
                 'current_page' => $accounts->currentPage(),
                 'last_page' => $accounts->lastPage(),
                 'total' => $accounts->total(),
             ],
+            'modules' => User::SYSTEM_ADMIN_MODULES,
+            'member_modules' => User::DASHBOARD_MODULES,
+            'business_options' => Business::query()
+                ->whereNull('deleted_at')
+                ->orderBy('company_name')
+                ->get(['id', 'company_name'])
+                ->map(fn (Business $business): array => ['id' => $business->id, 'name' => $business->company_name]),
+        ]);
+    }
+
+    public function storeAccount(Request $request): JsonResponse
+    {
+        $data = $this->validatedAccountData($request);
+
+        $user = DB::transaction(function () use ($request, $data): User {
+            $user = (new User)->forceFill([
+                'email' => $data['email'],
+                'password' => $data['password'],
+                'account_type' => $this->accountTypeForRole($data['role']),
+                'is_active' => true,
+                'email_verified_at' => now(),
+            ]);
+            $user->save();
+            $user->profile()->create($this->profileData($data));
+            $this->syncAccountBusinesses($user, $data);
+            if (isset($data['permissions'])) {
+                $this->syncModulePermissions($user, $data['permissions'], $data['role']);
+            }
+
+            AuditLog::record($request->user(), 'user.account_created', $user, [], [
+                'email' => $user->email,
+                'role' => $data['role'],
+                'business_ids' => $data['business_ids'],
+            ]);
+
+            return $user;
+        });
+
+        return response()->json([
+            'message' => 'Account created.',
+            'account' => $this->accountRecord($user),
+        ], 201);
+    }
+
+    public function updateAccount(Request $request, User $user): JsonResponse
+    {
+        if (! $request->user()->isSuperAdmin()) {
+            abort_unless($user->account_type === User::ACCOUNT_TYPE_REGULAR, 403);
+        }
+
+        $data = $this->validatedAccountData($request, $user);
+
+        $user->loadMissing(['profile', 'businesses', 'dashboardModulePermissions']);
+        $oldRole = $this->accountRole($user);
+        $oldValues = [
+            'email' => $user->email,
+            'role' => $this->accountRole($user),
+            ...$this->profileDataFromUser($user),
+        ];
+
+        DB::transaction(function () use ($request, $user, $data, $oldValues, $oldRole): void {
+            $attributes = [
+                'email' => $data['email'],
+                'account_type' => $this->accountTypeForRole($data['role']),
+            ];
+            if (! empty($data['password'])) {
+                $attributes['password'] = $data['password'];
+            }
+            $user->forceFill($attributes)->save();
+            $user->profile()->updateOrCreate([], $this->profileData($data));
+            $this->syncAccountBusinesses($user, $data);
+            if ($oldRole !== $data['role']) {
+                $this->clearModulePermissions($user, $oldRole);
+            }
+            if (isset($data['permissions'])) {
+                $this->syncModulePermissions($user, $data['permissions'], $data['role']);
+            }
+
+            AuditLog::record($request->user(), 'user.account_updated', $user, $oldValues, [
+                'email' => $user->email,
+                'role' => $data['role'],
+                'business_ids' => $data['business_ids'],
+                'profile' => $this->profileData($data),
+                ...(! empty($data['permissions']) ? ['permissions' => $data['permissions']] : []),
+            ]);
+        });
+
+        return response()->json([
+            'message' => 'Account updated.',
+            'account' => $this->accountRecord($user->fresh()),
         ]);
     }
 
@@ -488,7 +595,7 @@ class SuperAdminController extends Controller
                     'version' => $resource->version,
                     'file_name' => $resource->file_name,
                     'published_at' => $resource->published_at?->toDateString(),
-                    'view_count' => \App\Models\MemberActivity::query()
+                    'view_count' => MemberActivity::query()
                         ->where('activity_type', 'resource_viewed')
                         ->where('subject_type', 'resource')
                         ->where('subject_id', $resource->id)
@@ -741,6 +848,15 @@ class SuperAdminController extends Controller
             'status_options' => $section === 'memberships'
                 ? Membership::query()->distinct()->orderBy('status')->pluck('status')->values()
                 : [],
+            'business_options' => Business::query()
+                ->whereNull('deleted_at')
+                ->orderBy('company_name')
+                ->get(['id', 'company_name'])
+                ->map(fn (Business $business): array => [
+                    'id' => $business->id,
+                    'name' => $business->company_name,
+                ])
+                ->values(),
         ]);
     }
 
@@ -787,5 +903,284 @@ class SuperAdminController extends Controller
             'is_published' => $business->is_published,
             'directory_visibility' => $business->directory_visibility,
         ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function validatedAccountData(Request $request, ?User $user = null): array
+    {
+        $data = $request->validate([
+            'first_name' => ['required', 'string', 'max:120'],
+            'last_name' => ['nullable', 'string', 'max:120'],
+            'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user?->id)],
+            'phone' => ['nullable', 'string', 'max:40'],
+            'job_title' => ['nullable', 'string', 'max:120'],
+            'role' => ['required', Rule::in(['member', 'administrator', 'super_administrator'])],
+            'business_ids' => ['present', 'array', 'max:50'],
+            'business_ids.*' => ['integer', 'distinct', Rule::exists('clients', 'id')],
+            'business_roles' => ['sometimes', 'array', 'max:50'],
+            'business_roles.*.business_id' => ['required', 'integer', 'distinct', Rule::exists('clients', 'id')],
+            'business_roles.*.role' => ['required', Rule::in(['owner', 'admin', 'member'])],
+            'password' => $user
+                ? ['nullable', 'string', 'min:8', 'confirmed']
+                : ['required', 'string', 'min:8', 'confirmed'],
+            'permissions' => ['sometimes', 'array'],
+            'permissions.*' => ['required', 'array'],
+            'permissions.*.read' => ['required', 'boolean'],
+            'permissions.*.write' => ['required', 'boolean'],
+        ]);
+
+        if (! $request->user()->isSuperAdmin() && $data['role'] !== 'member') {
+            abort(403);
+        }
+
+        if (isset($data['permissions']) && ! $request->user()->isSuperAdmin()) {
+            abort(403);
+        }
+
+        if (isset($data['permissions']) && ! in_array($data['role'], ['administrator', 'member'], true)) {
+            throw ValidationException::withMessages([
+                'permissions' => 'Module permissions cannot be set for this account type.',
+            ]);
+        }
+
+        if (isset($data['permissions'])) {
+            $modules = $data['role'] === 'administrator'
+                ? User::SYSTEM_ADMIN_MODULES
+                : User::DASHBOARD_MODULES;
+            $this->validateModulePermissions($data['permissions'], $modules);
+        }
+
+        $businessRoles = $data['business_roles'] ?? array_map(
+            fn (int $businessId): array => ['business_id' => $businessId, 'role' => 'member'],
+            $data['business_ids']
+        );
+        $businessRoleIds = array_map('intval', array_column($businessRoles, 'business_id'));
+        $businessIds = array_map('intval', $data['business_ids']);
+        sort($businessRoleIds);
+        sort($businessIds);
+        if ($businessRoleIds !== $businessIds) {
+            throw ValidationException::withMessages([
+                'business_roles' => 'Choose a business role for every selected business.',
+            ]);
+        }
+
+        if ($data['role'] !== 'member' && $businessIds !== []) {
+            throw ValidationException::withMessages([
+                'business_ids' => 'Administrator and Super Administrator accounts cannot be assigned to Member businesses.',
+            ]);
+        }
+
+        $data['business_roles'] = $businessRoles;
+
+        return $data;
+    }
+
+    /**
+     * @param  array<string, array{read: bool, write: bool}>  $permissions
+     * @param  list<string>  $modules
+     */
+    private function validateModulePermissions(array $permissions, array $modules): void
+    {
+        if (array_diff(array_keys($permissions), $modules) !== []
+            || array_diff($modules, array_keys($permissions)) !== []) {
+            throw ValidationException::withMessages([
+                'permissions' => 'Choose read and write access for every module.',
+            ]);
+        }
+
+        foreach ($permissions as $permission) {
+            if ($permission['write'] && ! $permission['read']) {
+                throw ValidationException::withMessages([
+                    'permissions' => 'Write access requires read access for the same module.',
+                ]);
+            }
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function syncAccountBusinesses(User $user, array $data): void
+    {
+        if ($data['role'] !== 'member') {
+            $user->businessAssociations()
+                ->where('status', 'active')
+                ->update(['status' => 'inactive']);
+
+            return;
+        }
+
+        $businessRoles = $data['business_roles'];
+        $selectedBusinessIds = array_map('intval', array_column($businessRoles, 'business_id'));
+        $primaryBusinessId = $selectedBusinessIds === [] ? null : $user->businessAssociations()
+            ->where('status', 'active')
+            ->where('is_primary', true)
+            ->whereIn('business_id', $selectedBusinessIds)
+            ->value('business_id');
+        if ($primaryBusinessId === null && $selectedBusinessIds !== []) {
+            $primaryBusinessId = $selectedBusinessIds[0];
+        }
+
+        $unselectedAssociations = $user->businessAssociations()->where('status', 'active');
+        if ($selectedBusinessIds !== []) {
+            $unselectedAssociations->whereNotIn('business_id', $selectedBusinessIds);
+        }
+        $unselectedAssociations->update(['status' => 'inactive']);
+
+        foreach ($businessRoles as $businessRole) {
+            $businessId = (int) $businessRole['business_id'];
+            $role = $businessRole['role'];
+            $association = $user->businessAssociations()->firstOrNew(['business_id' => $businessId]);
+            $association->fill([
+                'role' => $role,
+                'access_level' => $role,
+                'status' => 'active',
+                'is_primary' => (int) $businessId === (int) $primaryBusinessId,
+                'accepted_at' => $association->accepted_at ?? now(),
+            ])->save();
+        }
+    }
+
+    /**
+     * @param  array<string, array{read: bool, write: bool}>  $permissions
+     */
+    private function syncModulePermissions(User $user, array $permissions, string $role): void
+    {
+        foreach ($permissions as $module => $permission) {
+            $user->dashboardModulePermissions()->updateOrCreate(
+                ['module' => $role === 'administrator' ? 'system_'.$module : $module],
+                ['can_read' => $permission['read'], 'can_write' => $permission['write']],
+            );
+        }
+    }
+
+    private function clearModulePermissions(User $user, string $role): void
+    {
+        $modules = match ($role) {
+            'administrator', 'super_administrator' => array_map(
+                fn (string $module): string => 'system_'.$module,
+                User::SYSTEM_ADMIN_MODULES
+            ),
+            'member' => User::DASHBOARD_MODULES,
+            default => [],
+        };
+        $user->dashboardModulePermissions()->whereIn('module', $modules)->delete();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function profileData(array $data): array
+    {
+        return [
+            'first_name' => $data['first_name'],
+            'last_name' => $data['last_name'] ?? null,
+            'phone' => $data['phone'] ?? null,
+            'job_title' => $data['job_title'] ?? null,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function profileDataFromUser(User $user): array
+    {
+        return [
+            'first_name' => $user->profile?->first_name,
+            'last_name' => $user->profile?->last_name,
+            'phone' => $user->profile?->phone,
+            'job_title' => $user->profile?->job_title,
+        ];
+    }
+
+    private function accountRole(User $user): string
+    {
+        if ($user->isSuperAdmin()) {
+            return 'super_administrator';
+        }
+        if ($user->isAdministrator()) {
+            return 'administrator';
+        }
+
+        return 'member';
+    }
+
+    private function accountRoleLabel(User $user): string
+    {
+        return match ($this->accountRole($user)) {
+            'super_administrator' => 'Super Administrator',
+            'administrator' => 'Administrator',
+            default => 'Member',
+        };
+    }
+
+    private function accountTypeForRole(string $role): string
+    {
+        return match ($role) {
+            'administrator' => User::ACCOUNT_TYPE_ADMINISTRATOR,
+            'super_administrator' => User::ACCOUNT_TYPE_SUPER_ADMIN,
+            default => User::ACCOUNT_TYPE_REGULAR,
+        };
+    }
+
+    /**
+     * @return array<string, array{read: bool, write: bool}>
+     */
+    private function accountPermissions(User $user): array
+    {
+        return match ($this->accountRole($user)) {
+            'administrator' => $user->systemAdminModuleAccess(),
+            'member' => $user->dashboardModuleAccess(),
+            default => [],
+        };
+    }
+
+    private function businessRole(Business $business): string
+    {
+        if ($business->pivot->role === 'owner' || $business->pivot->access_level === 'owner') {
+            return 'owner';
+        }
+        if ($business->pivot->role === 'admin' || $business->pivot->access_level === 'admin') {
+            return 'admin';
+        }
+
+        return 'member';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function accountRecord(User $user): array
+    {
+        $user->loadMissing([
+            'profile',
+            'businesses' => fn ($businesses) => $businesses->wherePivot('status', 'active'),
+            'dashboardModulePermissions',
+        ]);
+        $role = $this->accountRole($user);
+
+        return [
+            'id' => $user->id,
+            'name' => $user->profile?->full_name ?? 'Profile incomplete',
+            'first_name' => $user->profile?->first_name,
+            'last_name' => $user->profile?->last_name,
+            'email' => $user->email,
+            'phone' => $user->profile?->phone,
+            'job_title' => $user->profile?->job_title,
+            'account_type' => $user->account_type,
+            'role_key' => $role,
+            'role' => $this->accountRoleLabel($user),
+            'is_active' => $user->is_active,
+            'businesses' => $user->businesses->map(fn (Business $business): array => [
+                'id' => $business->id,
+                'name' => $business->company_name,
+                'role' => $this->businessRole($business),
+                'is_administrator' => in_array($business->pivot->role, ['owner', 'admin'], true)
+                    || in_array($business->pivot->access_level, ['owner', 'admin'], true),
+            ]),
+            'permissions' => $this->accountPermissions($user),
+        ];
     }
 }

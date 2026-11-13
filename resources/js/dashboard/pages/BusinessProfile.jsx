@@ -36,6 +36,86 @@ function ProfileField({ label, name, value, type = 'text', multiline = false }) 
     );
 }
 
+function BusinessCategoryFields({ business, categoryOptions }) {
+    const additionalCategories = (business.categories ?? []).filter((category) => category !== business.category);
+    const isKnownPrimary = categoryOptions.includes(business.category);
+    const [primaryChoice, setPrimaryChoice] = useState(isKnownPrimary ? business.category : 'Other');
+    const [customPrimary, setCustomPrimary] = useState(isKnownPrimary ? '' : business.category ?? '');
+    const [selectedAdditional, setSelectedAdditional] = useState(
+        additionalCategories.filter((category) => categoryOptions.includes(category)),
+    );
+    const [customAdditional, setCustomAdditional] = useState(
+        additionalCategories.filter((category) => !categoryOptions.includes(category)).join(', '),
+    );
+
+    function updatePrimary(event) {
+        const category = event.target.value;
+        setPrimaryChoice(category);
+        if (category !== 'Other') {
+            setCustomPrimary('');
+            setSelectedAdditional((current) => current.filter((item) => item !== category));
+        }
+    }
+
+    return (
+        <>
+            <label className="block text-xs font-semibold text-[var(--rr-neutral-dark)]">
+                Primary category
+                <select required value={primaryChoice} onChange={updatePrimary} className={`${inputClass} mt-1`}>
+                    <option value="">Choose a category</option>
+                    {categoryOptions.map((category) => <option key={category} value={category}>{category}</option>)}
+                    <option value="Other">Other</option>
+                </select>
+                <input type="hidden" name="category" value={primaryChoice === 'Other' ? customPrimary : primaryChoice} />
+            </label>
+            {primaryChoice === 'Other' && (
+                <label className="block text-xs font-semibold text-[var(--rr-neutral-dark)]">
+                    Your business category
+                    <input
+                        required
+                        maxLength="100"
+                        value={customPrimary}
+                        onChange={(event) => setCustomPrimary(event.target.value)}
+                        className={`${inputClass} mt-1`}
+                    />
+                </label>
+            )}
+            <fieldset className="sm:col-span-2">
+                <legend className="text-xs font-semibold text-[var(--rr-neutral-dark)]">Additional categories</legend>
+                <p className="mt-1 text-xs text-[var(--rr-neutral-mid)]">Choose any that apply. Add custom categories below if needed.</p>
+                <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                    {categoryOptions.filter((category) => category !== primaryChoice).map((category) => (
+                        <label key={category} className="flex min-h-9 items-center gap-2 text-sm font-normal">
+                            <input
+                                type="checkbox"
+                                name="additional_categories"
+                                value={category}
+                                checked={selectedAdditional.includes(category)}
+                                onChange={(event) => setSelectedAdditional((current) => (
+                                    event.target.checked
+                                        ? [...current, category]
+                                        : current.filter((item) => item !== category)
+                                ))}
+                                className="size-4 accent-[var(--rr-primary)]"
+                            />
+                            {category}
+                        </label>
+                    ))}
+                </div>
+                <label className="mt-3 block text-xs font-semibold text-[var(--rr-neutral-dark)]">
+                    Other additional categories (comma separated)
+                    <input
+                        name="custom_additional_categories"
+                        value={customAdditional}
+                        onChange={(event) => setCustomAdditional(event.target.value)}
+                        className={`${inputClass} mt-1`}
+                    />
+                </label>
+            </fieldset>
+        </>
+    );
+}
+
 export default function BusinessProfile({ data, onRefresh }) {
     const business = data.business;
     const [notice, setNotice] = useState('');
@@ -51,7 +131,7 @@ export default function BusinessProfile({ data, onRefresh }) {
     if (data.user.is_super_admin) {
         return (
             <div>
-                <PageHeading eyebrow="Service provider" title="Business profiles">
+                <PageHeading eyebrow="Super Administrator" title="Business profiles">
                     Business profile details and directory status across all businesses.
                 </PageHeading>
                 <Card>
@@ -101,7 +181,11 @@ export default function BusinessProfile({ data, onRefresh }) {
                                     setNotice('');
                                     const form = new FormData(event.currentTarget);
                                     const payload = Object.fromEntries(form.entries());
-                                    payload.additional_categories = (payload.additional_categories || '').split(',').map((item) => item.trim()).filter(Boolean);
+                                    payload.additional_categories = [
+                                        ...form.getAll('additional_categories'),
+                                        ...String(form.get('custom_additional_categories') || '').split(','),
+                                    ].map((item) => item.trim()).filter(Boolean);
+                                    delete payload.custom_additional_categories;
                                     for (const field of ['specialties', 'appointment_methods', 'service_areas']) {
                                         payload[field] = (payload[field] || '').split(',').map((item) => item.trim()).filter(Boolean);
                                     }
@@ -116,8 +200,7 @@ export default function BusinessProfile({ data, onRefresh }) {
                                     }
                                 }} className="mt-5 grid gap-4 sm:grid-cols-2">
                                     <ProfileField label="Business name" name="company_name" value={business.name} />
-                                    <ProfileField label="Primary category" name="category" value={business.category} />
-                                    <ProfileField label="Additional categories (comma separated)" name="additional_categories" value={(business.categories ?? []).filter((category) => category !== business.category).join(', ')} />
+                                    <BusinessCategoryFields business={business} categoryOptions={data.business_category_options ?? []} />
                                     <ProfileField label="Tagline" name="tagline" value={business.tagline} />
                                     <ProfileField label="Short description" name="short_description" value={business.short_description} multiline />
                                     <ProfileField label="Description" name="description" value={business.description} multiline />

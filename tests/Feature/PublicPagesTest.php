@@ -9,6 +9,8 @@ use App\Models\BusinessCategory;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Route as RoutingRoute;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Str;
+use Laravel\Fortify\Contracts\LoginViewResponse;
 use Tests\TestCase;
 
 class PublicPagesTest extends TestCase
@@ -58,6 +60,11 @@ class PublicPagesTest extends TestCase
             ->assertSee('How it works')
             ->assertSee('Frequently asked questions')
             ->assertSee('Membership pricing is still being finalized.');
+
+        $this->get(route('home'))
+            ->assertOk()
+            ->assertSee(asset('storage/branding/the-argyle-buzz-logo.png'), false)
+            ->assertSee(asset('storage/img/Hero Section.jpg'), false);
 
         config(['membership.amount' => '200']);
 
@@ -123,7 +130,7 @@ class PublicPagesTest extends TestCase
 
     public function test_fortify_login_route_renders_a_csrf_protected_login_view(): void
     {
-        $this->assertTrue($this->app->bound(\Laravel\Fortify\Contracts\LoginViewResponse::class));
+        $this->assertTrue($this->app->bound(LoginViewResponse::class));
 
         $this->get(route('login'))
             ->assertOk()
@@ -176,7 +183,7 @@ class PublicPagesTest extends TestCase
         ], $attributes));
         $category = BusinessCategory::query()->firstOrCreate(
             ['name' => $categoryName],
-            ['slug' => \Illuminate\Support\Str::slug($categoryName)]
+            ['slug' => Str::slug($categoryName)]
         );
         $business->categories()->attach($category->id, ['is_primary' => true]);
 

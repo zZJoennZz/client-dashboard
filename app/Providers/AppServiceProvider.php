@@ -3,6 +3,8 @@
 namespace App\Providers;
 
 use App\Http\Controllers\RegistrationController;
+use App\Http\Middleware\EnsureDashboardModuleAccess;
+use App\Http\Middleware\EnsureSystemAdminModuleAccess;
 use App\Http\Responses\LoginResponse;
 use App\Models\User;
 use App\Services\MemberActivityRecorder;
@@ -31,14 +33,17 @@ class AppServiceProvider extends ServiceProvider
         Fortify::loginView('auth.login');
         Fortify::registerView('auth.register');
         Fortify::createUsersUsing(RegistrationController::class);
+        $this->app['router']->aliasMiddleware('dashboard.module', EnsureDashboardModuleAccess::class);
+        $this->app['router']->aliasMiddleware('system.module', EnsureSystemAdminModuleAccess::class);
         Gate::define('super-admin', fn (User $user): bool => $user->isSuperAdmin());
+        Gate::define('system-admin', fn (User $user): bool => $user->isSystemAdministrator());
         Event::listen(Login::class, function (Login $login): void {
             if (! ($login->user instanceof User)) {
                 return;
             }
 
             $login->user->forceFill(['last_login_at' => now()])->saveQuietly();
-            if ($login->user->isSuperAdmin() || ! request()->hasSession()) {
+            if ($login->user->isSystemAdministrator() || ! request()->hasSession()) {
                 return;
             }
 

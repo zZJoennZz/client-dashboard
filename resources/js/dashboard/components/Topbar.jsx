@@ -2,6 +2,11 @@ import React from 'react';
 
 export default function Topbar({ data, pageTitle, setMenuOpen }) {
     const token = document.querySelector('meta[name="csrf-token"]')?.content ?? '';
+    const roleLabel = {
+        super_administrator: 'Super Administrator',
+        administrator: 'Administrator',
+        member: 'Member',
+    }[data?.user?.dashboard_role];
 
     return (
         <header className="sticky top-0 z-30 border-b border-[var(--rr-border)] bg-white/95 backdrop-blur">
@@ -30,7 +35,7 @@ export default function Topbar({ data, pageTitle, setMenuOpen }) {
                     <div className="absolute right-0 top-12 z-40 w-64 rounded-xl border border-[var(--rr-border)] bg-white p-4 shadow-lg">
                         <p className="truncate text-sm font-semibold">{data?.user?.name}</p>
                         <p className="mt-1 truncate text-xs text-[var(--rr-neutral-mid)]">{data?.user?.email}</p>
-                        {data?.user?.is_super_admin && <p className="mt-2 inline-flex rounded-full bg-[var(--rr-accent-light)] px-2.5 py-1 text-xs font-semibold text-[var(--rr-accent)]">Service provider</p>}
+                        {roleLabel && <p className="mt-2 inline-flex rounded-full bg-[var(--rr-accent-light)] px-2.5 py-1 text-xs font-semibold text-[var(--rr-accent)]">{roleLabel}</p>}
                         <form method="POST" action="/logout" className="mt-3 border-t border-[var(--rr-border)] pt-3">
                             <input type="hidden" name="_token" value={token} />
                             <button type="submit" className="min-h-11 w-full rounded-lg px-3 text-left text-sm font-semibold text-[var(--rr-primary)] hover:bg-[var(--rr-neutral-light)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--rr-primary)]">Log out</button>

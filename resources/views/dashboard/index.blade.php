@@ -10,6 +10,6 @@
     @vite(['resources/css/app.css', 'resources/js/dashboard/main.jsx'])
 </head>
 <body class="min-h-screen bg-[var(--rr-background)] font-sans text-[var(--rr-neutral-dark)] antialiased">
-    <div id="member-dashboard" data-dashboard-data-url="{{ route('dashboard.data') }}" data-login-url="{{ route('login') }}"></div>
+    <div id="member-dashboard" data-dashboard-data-url="{{ route('dashboard.data') }}" data-members-url="{{ route('dashboard.members.index') }}" data-login-url="{{ route('login') }}"></div>
 </body>
 </html>

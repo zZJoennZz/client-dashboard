@@ -25,6 +25,9 @@ if (root) {
                 announcementsUrl={root.dataset.announcementsUrl}
                 exportUrl={root.dataset.exportUrl}
                 loginUrl={root.dataset.loginUrl}
+                moduleAccess={JSON.parse(root.dataset.moduleAccess || '{}')}
+                roleLabel={root.dataset.roleLabel}
+                canManageSystemRoles={root.dataset.canManageSystemRoles === 'true'}
             />
         </React.StrictMode>,
     );

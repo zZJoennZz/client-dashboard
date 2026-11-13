@@ -2,7 +2,7 @@ import React from 'react';
 
 export function Card({ title, eyebrow, action, children, className = '' }) {
     return (
-        <section className={`rounded-xl border border-[var(--rr-border)] bg-white p-5 shadow-sm sm:p-6 ${className}`}>
+        <section className={`rounded-xl border border-[var(--rr-border)] bg-white p-5 shadow-sm transition-shadow duration-200 hover:shadow-md sm:p-6 ${className}`}>
             {(title || eyebrow || action) && (
                 <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>

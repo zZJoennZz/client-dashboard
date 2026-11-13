@@ -46,7 +46,10 @@ class SuperAdminOrderServiceController extends Controller
     {
         $data = $request->validate([
             'status' => ['required', Rule::in(Order::STATUSES)],
-            'assigned_staff_id' => ['nullable', 'integer', Rule::exists('users', 'id')->where('account_type', User::ACCOUNT_TYPE_SUPER_ADMIN)],
+            'assigned_staff_id' => ['nullable', 'integer', Rule::exists('users', 'id')->whereIn('account_type', [
+                User::ACCOUNT_TYPE_ADMINISTRATOR,
+                User::ACCOUNT_TYPE_SUPER_ADMIN,
+            ])],
             'fulfillment_notes' => ['nullable', 'string', 'max:10000'],
         ]);
 

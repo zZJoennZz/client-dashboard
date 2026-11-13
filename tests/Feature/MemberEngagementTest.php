@@ -19,6 +19,194 @@ class MemberEngagementTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_business_administrators_can_submit_single_business_events_for_approval_and_members_can_rsvp_after_publication(): void
+    {
+        $firstBusiness = Business::factory()->create();
+        $secondBusiness = Business::factory()->create();
+        $firstAdmin = User::factory()->create();
+        $secondAdmin = User::factory()->create();
+        $firstMember = User::factory()->create();
+        $secondMember = User::factory()->create();
+        $this->attachBusinessUser($firstBusiness, $firstAdmin, 'owner');
+        $this->attachBusinessUser($secondBusiness, $secondAdmin, 'admin');
+        $this->attachBusinessUser($firstBusiness, $firstMember, 'member');
+        $this->attachBusinessUser($secondBusiness, $secondMember, 'member');
+
+        $this->actingAs($firstAdmin)
+            ->getJson(route('dashboard.data'))
+            ->assertOk()
+            ->assertJsonCount(1, 'event_business_options')
+            ->assertJsonPath('event_business_options.0.id', $firstBusiness->id);
+
+        $eventData = [
+            'title' => 'Community Workshop',
+            'starts_at' => now()->addDays(3)->toIso8601String(),
+            'ends_at' => now()->addDays(3)->addHour()->toIso8601String(),
+            'registration_enabled' => true,
+        ];
+        $this->actingAs($firstAdmin)
+            ->postJson(route('dashboard.events.store'), [
+                ...$eventData,
+                'business_id' => [$firstBusiness->id, $secondBusiness->id],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('business_id');
+
+        $firstEventId = $this->postJson(route('dashboard.events.store'), [
+            ...$eventData,
+            'business_id' => $firstBusiness->id,
+        ])
+            ->assertCreated()
+            ->assertJsonPath('status', 'draft')
+            ->json('id');
+        $secondEventId = $this->actingAs($secondAdmin)
+            ->postJson(route('dashboard.events.store'), [
+                ...$eventData,
+                'title' => 'Cross-Business Workshop',
+                'business_id' => $secondBusiness->id,
+            ])
+            ->assertCreated()
+            ->json('id');
+
+        $firstEvent = Event::query()->findOrFail($firstEventId);
+        $secondEvent = Event::query()->findOrFail($secondEventId);
+        $this->assertSame($firstBusiness->id, $firstEvent->business_id);
+        $this->assertSame($secondBusiness->id, $secondEvent->business_id);
+        $this->assertFalse($firstEvent->is_published);
+
+        $this->actingAs($firstMember)
+            ->postJson(route('dashboard.events.register', $firstEvent))
+            ->assertUnprocessable();
+        $admin = User::factory()->superAdmin()->create();
+        $this->actingAs($admin)
+            ->patchJson(route('super-admin.events.status', $firstEvent), ['status' => 'published'])
+            ->assertOk();
+        $this->patchJson(route('super-admin.events.status', $secondEvent), ['status' => 'published'])
+            ->assertOk();
+
+        $this->actingAs($firstMember)
+            ->getJson(route('dashboard.data'))
+            ->assertOk()
+            ->assertJsonFragment([
+                'title' => 'Cross-Business Workshop',
+                'business_name' => $secondBusiness->company_name,
+            ]);
+
+        $this->actingAs($firstMember)
+            ->postJson(route('dashboard.events.register', $secondEvent))
+            ->assertCreated()
+            ->assertJsonPath('status', 'registered');
+        $this->actingAs($firstMember)
+            ->postJson(route('dashboard.events.register', $firstEvent))
+            ->assertCreated()
+            ->assertJsonPath('status', 'registered');
+        $this->actingAs($secondMember)
+            ->postJson(route('dashboard.events.register', $secondEvent))
+            ->assertCreated()
+            ->assertJsonPath('status', 'registered');
+        $this->actingAs($firstMember)
+            ->getJson(route('dashboard.data'))
+            ->assertOk()
+            ->assertJsonFragment([
+                'event' => 'Cross-Business Workshop',
+                'business' => $secondBusiness->company_name,
+                'status' => 'registered',
+            ]);
+
+        $unaffiliatedUser = User::factory()->create();
+        $this->actingAs($unaffiliatedUser)
+            ->postJson(route('dashboard.events.register', $firstEvent))
+            ->assertNotFound();
+
+        $memberWithoutAdminRole = User::factory()->create();
+        $this->attachBusinessUser($firstBusiness, $memberWithoutAdminRole, 'member');
+        $this->actingAs($memberWithoutAdminRole)
+            ->postJson(route('dashboard.events.store'), [
+                ...$eventData,
+                'business_id' => $firstBusiness->id,
+            ])
+            ->assertForbidden();
+    }
+
+    public function test_business_administrators_can_edit_only_their_business_events_and_edits_require_approval_again(): void
+    {
+        $business = Business::factory()->create();
+        $otherBusiness = Business::factory()->create();
+        $owner = User::factory()->create();
+        $otherOwner = User::factory()->create();
+        $member = User::factory()->create();
+        $this->attachBusinessUser($business, $owner, 'owner');
+        $this->attachBusinessUser($otherBusiness, $otherOwner, 'owner');
+        $this->attachBusinessUser($otherBusiness, $member, 'member');
+        $this->attachBusinessUser($business, $member, 'member');
+
+        $event = Event::factory()->create([
+            'business_id' => $business->id,
+            'title' => 'Original event',
+            'status' => 'published',
+            'is_published' => true,
+        ]);
+        $this->actingAs($member)
+            ->postJson(route('dashboard.events.register', $event))
+            ->assertCreated();
+
+        $startsAt = now()->addDays(5);
+        $eventChanges = [
+            'title' => 'Updated event',
+            'description' => 'Updated event details.',
+            'location' => 'Main Hall',
+            'starts_at' => $startsAt->toIso8601String(),
+            'ends_at' => $startsAt->copy()->addHour()->toIso8601String(),
+            'capacity' => 20,
+            'registration_enabled' => true,
+        ];
+
+        $this->actingAs($otherOwner)
+            ->putJson(route('dashboard.events.update', $event), $eventChanges)
+            ->assertNotFound();
+        $this->actingAs($member)
+            ->putJson(route('dashboard.events.update', $event), $eventChanges)
+            ->assertForbidden();
+        $this->actingAs($owner)
+            ->putJson(route('dashboard.events.update', $event), [
+                ...$eventChanges,
+                'business_id' => $otherBusiness->id,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('business_id');
+
+        $this->putJson(route('dashboard.events.update', $event), $eventChanges)
+            ->assertOk()
+            ->assertJsonPath('status', 'draft');
+        $this->assertDatabaseHas('events', [
+            'id' => $event->id,
+            'business_id' => $business->id,
+            'title' => 'Updated event',
+            'status' => 'draft',
+            'is_published' => false,
+        ]);
+        $this->assertDatabaseHas('event_registrations', [
+            'event_id' => $event->id,
+            'user_id' => $member->id,
+            'status' => 'registered',
+        ]);
+        $this->getJson(route('dashboard.data'))
+            ->assertOk()
+            ->assertJsonPath('events.0.can_edit', true)
+            ->assertJsonPath('events.0.can_register', false)
+            ->assertJsonPath('events.0.status', 'draft');
+
+        $superAdmin = User::factory()->superAdmin()->create();
+        $this->actingAs($superAdmin)
+            ->patchJson(route('super-admin.events.status', $event), ['status' => 'published'])
+            ->assertOk();
+        $this->actingAs($member)
+            ->getJson(route('dashboard.data'))
+            ->assertOk()
+            ->assertJsonPath('events.0.title', 'Updated event')
+            ->assertJsonPath('events.0.registration.status', 'registered');
+    }
+
     public function test_member_login_updates_last_login_and_records_a_minimal_activity(): void
     {
         $member = User::factory()->create([
@@ -312,6 +500,16 @@ class MemberEngagementTest extends TestCase
             'business_id' => $business->id,
             'activity_type' => 'report_download',
             'subject_label' => 'Member report',
+        ]);
+    }
+
+    private function attachBusinessUser(Business $business, User $user, string $role): void
+    {
+        $business->users()->attach($user->id, [
+            'role' => $role,
+            'access_level' => $role,
+            'status' => 'active',
+            'is_primary' => true,
         ]);
     }
 

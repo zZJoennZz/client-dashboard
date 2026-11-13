@@ -9,7 +9,7 @@ export default function Membership({ data }) {
 
         return (
             <div>
-                <PageHeading eyebrow="Service provider" title="Memberships">
+                <PageHeading eyebrow="Super Administrator" title="Memberships">
                     Membership plans and status across all businesses.
                 </PageHeading>
                 <Card>
@@ -59,11 +59,11 @@ export default function Membership({ data }) {
                                 <p className="mt-1 text-sm font-medium">Not connected</p>
                             </div>
                         </div>
-                        <p className="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950">
+                        {/* <p className="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950">
                             {membership.payment_is_simulated
                                 ? 'This registration used a development placeholder. The membership record is marked active, but no payment was collected.'
                                 : 'This dashboard does not process or verify payments. The payment state above reflects the current database record only.'}
-                        </p>
+                        </p> */}
                     </Card>
                 </div>
             )}

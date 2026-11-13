@@ -103,7 +103,10 @@ class SuperAdminMarketingController extends Controller
             'promotion_type' => ['required', 'string', 'max:100'],
             'platform' => ['nullable', 'string', 'max:100'],
             'scheduled_at' => ['nullable', 'date'],
-            'responsible_admin_id' => ['nullable', 'integer', Rule::exists('users', 'id')->where('account_type', User::ACCOUNT_TYPE_SUPER_ADMIN)],
+            'responsible_admin_id' => ['nullable', 'integer', Rule::exists('users', 'id')->whereIn('account_type', [
+                User::ACCOUNT_TYPE_ADMINISTRATOR,
+                User::ACCOUNT_TYPE_SUPER_ADMIN,
+            ])],
             'caption' => ['nullable', 'string', 'max:10000'],
             'description' => ['nullable', 'string', 'max:10000'],
             'member_description' => ['nullable', 'string', 'max:10000'],

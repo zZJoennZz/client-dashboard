@@ -21,7 +21,7 @@
             <div class="p-8 sm:p-10">
                 <p class="text-4xl font-semibold tracking-tight text-[var(--rr-neutral-dark)]">{{ $membership['price_label'] }}</p>
                 @if (!is_numeric($membership['amount']))
-                    <p class="mt-3 inline-flex rounded-full bg-[var(--rr-accent-light)]/50 px-3 py-1.5 text-xs font-semibold text-[var(--rr-neutral-dark)]">Membership pricing is a placeholder and has not yet been confirmed.</p>
+                    {{-- <p class="mt-3 inline-flex rounded-full bg-[var(--rr-accent-light)]/50 px-3 py-1.5 text-xs font-semibold text-[var(--rr-neutral-dark)]">Membership pricing is a placeholder and has not yet been confirmed.</p> --}}
                 @else
                     <p class="mt-2 text-sm text-[var(--rr-neutral-mid)]">Membership contribution, billed {{ $membership['period'] }}.</p>
                 @endif

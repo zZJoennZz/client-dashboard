@@ -45,6 +45,11 @@ class UserFactory extends Factory
         return $this->state(fn (): array => ['account_type' => User::ACCOUNT_TYPE_SUPER_ADMIN]);
     }
 
+    public function administrator(): static
+    {
+        return $this->state(fn (): array => ['account_type' => User::ACCOUNT_TYPE_ADMINISTRATOR]);
+    }
+
     /**
      * Indicate that the model's email address should be unverified.
      */

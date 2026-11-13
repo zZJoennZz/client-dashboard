@@ -9,10 +9,10 @@
         <div class="absolute right-12 top-16 -z-10 size-72 rounded-full border border-[var(--rr-primary)]/10" aria-hidden="true"></div>
         <div class="mx-auto grid max-w-7xl items-center gap-12 px-5 py-20 sm:px-8 sm:py-28 lg:grid-cols-[1.1fr_0.9fr]">
             <div class="max-w-2xl">
-                <p class="mb-6 inline-flex items-center gap-2 rounded-full border border-[var(--rr-primary)]/15 bg-white/60 px-4 py-2 text-xs font-bold uppercase tracking-[0.16em] text-[var(--rr-accent)]">
+                {{-- <p class="mb-6 inline-flex items-center gap-2 rounded-full border border-[var(--rr-primary)]/15 bg-white/60 px-4 py-2 text-xs font-bold uppercase tracking-[0.16em] text-[var(--rr-accent)]">
                     <span class="size-2 rounded-full bg-[var(--rr-highlight)]" aria-hidden="true"></span>
                     A local business growth initiative
-                </p>
+                </p> --}}
                 <h1 class="text-5xl font-semibold leading-[1.04] tracking-[-0.055em] text-[var(--rr-neutral-dark)] sm:text-6xl">Support Argyle.<br><span class="font-serif font-normal italic text-[var(--rr-highlight)]">Grow your business.</span></h1>
                 <p class="mt-7 max-w-xl text-lg leading-8 text-[var(--rr-neutral-mid)]">Join Argyle's local business community and connect with neighbors, fellow owners, and the people who make this place home.</p>
                 <div class="mt-9 flex flex-wrap gap-3">

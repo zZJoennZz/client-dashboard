@@ -9,6 +9,7 @@ import Resources from './pages/Resources';
 import Marketing from './pages/Marketing';
 import Guidelines from './pages/Guidelines';
 import Settings from './pages/Settings';
+import Members from './pages/Members';
 
 const pages = {
     overview: { title: 'Overview', component: Overview },
@@ -20,6 +21,7 @@ const pages = {
     guidelines: { title: 'Guidelines', component: Guidelines },
     marketing: { title: 'Marketing schedule', component: Marketing },
     settings: { title: 'Settings', component: Settings },
+    users: { title: 'Members', component: Members },
 };
 
 function pageFromPath(pathname) {
@@ -29,7 +31,7 @@ function pageFromPath(pathname) {
     return Object.hasOwn(pages, segment) ? segment : null;
 }
 
-export default function App({ dataUrl, loginUrl }) {
+export default function App({ dataUrl, membersUrl, loginUrl }) {
     const [pathname, setPathname] = useState(window.location.pathname);
     const [data, setData] = useState(null);
     const [loadState, setLoadState] = useState('loading');
@@ -96,28 +98,47 @@ export default function App({ dataUrl, loginUrl }) {
         window.history.pushState({}, '', to);
         setPathname(to);
         setMenuOpen(false);
-        window.scrollTo({ top: 0, behavior: 'instant' });
+        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        window.scrollTo({ top: 0, behavior: prefersReducedMotion ? 'instant' : 'smooth' });
     }
 
     const pageKey = pageFromPath(pathname);
     const page = pageKey ? pages[pageKey] : null;
     const Page = page?.component;
+    const hasReadAccess = !pageKey || data?.module_permissions?.[pageKey]?.read !== false;
+    const displayedPage = hasReadAccess ? page : null;
 
     return (
         <DashboardLayout
             data={data}
-            pageTitle={page?.title ?? 'Page not found'}
+            pageTitle={displayedPage?.title ?? (pageKey ? 'Access restricted' : 'Page not found')}
             pageKey={pageKey}
+            modulePermissions={data?.module_permissions}
             menuOpen={menuOpen}
             setMenuOpen={setMenuOpen}
             navigate={navigate}
         >
             {loadState === 'loading' && <LoadingState />}
             {loadState === 'error' && <ErrorState onRetry={() => window.location.reload()} />}
-            {loadState === 'ready' && (Page
-                ? <Page data={data} navigate={navigate} onRefresh={refreshData} />
-                : <NotFound navigate={navigate} />)}
+            {loadState === 'ready' && (!hasReadAccess
+                ? <AccessRestricted navigate={navigate} />
+                : Page
+                    ? <div key={pageKey} className="dashboard-page-enter min-w-0"><Page data={data} membersUrl={membersUrl} navigate={navigate} onRefresh={refreshData} /></div>
+                    : <NotFound navigate={navigate} />)}
         </DashboardLayout>
+    );
+}
+
+function AccessRestricted({ navigate }) {
+    return (
+        <div role="alert" className="rounded-2xl border border-[var(--rr-border)] bg-white px-6 py-16 text-center">
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--rr-accent)]">Administrator access</p>
+            <h2 className="mt-3 text-2xl font-semibold">You don't have access to this module.</h2>
+            <p className="mt-2 text-sm text-[var(--rr-neutral-mid)]">Ask a Super Administrator to review your module permissions.</p>
+            <button onClick={() => navigate('/dashboard')} className="mt-6 min-h-11 rounded-lg bg-[var(--rr-primary)] px-5 py-2 text-sm font-semibold text-white hover:bg-[var(--rr-primary-light)]">
+                Return to overview
+            </button>
+        </div>
     );
 }
 

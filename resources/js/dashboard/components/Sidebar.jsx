@@ -10,9 +10,12 @@ export const navigation = [
     { key: 'guidelines', label: 'Guidelines', icon: '▤', href: '/dashboard/guidelines' },
     { key: 'marketing', label: 'Marketing schedule', icon: '✳', href: '/dashboard/marketing' },
     { key: 'settings', label: 'Settings', icon: '⚙', href: '/dashboard/settings' },
+    { key: 'users', label: 'Members', icon: '♙', href: '/dashboard/users' },
 ];
 
-export default function Sidebar({ pageKey, menuOpen, setMenuOpen, navigate }) {
+export default function Sidebar({ pageKey, modulePermissions, menuOpen, setMenuOpen, navigate }) {
+    const visibleNavigation = navigation.filter((item) => modulePermissions?.[item.key]?.read !== false);
+
     return (
         <>
             {menuOpen && (
@@ -23,16 +26,16 @@ export default function Sidebar({ pageKey, menuOpen, setMenuOpen, navigate }) {
                     onClick={() => setMenuOpen(false)}
                 />
             )}
-            <aside className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col bg-[var(--rr-primary)] text-white transition-transform duration-200 lg:translate-x-0 ${menuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+            <aside className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col bg-[var(--rr-primary)] text-white transition-transform duration-300 ease-in-out lg:translate-x-0 ${menuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
                 <div className="flex h-20 items-center justify-between border-b border-white/10 px-6">
                     <a href="/" className="flex items-center gap-3 rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--rr-warning)]">
-                        <img src="/the-argyle-buzz-logo.png" alt="The Argyle Buzz" width="475" height="88" className="h-10 w-auto max-w-[220px] rounded bg-white px-1" />
+                        <img src="/storage/branding/the-argyle-buzz-logo.png" alt="The Argyle Buzz" width="475" height="88" className="h-10 w-auto max-w-[220px] rounded bg-white px-1" />
                     </a>
                     <button onClick={() => setMenuOpen(false)} className="min-h-11 min-w-11 rounded-lg text-white/80 hover:bg-white/10 lg:hidden" aria-label="Close navigation">×</button>
                 </div>
                 <p className="px-6 pb-3 pt-7 text-[10px] font-bold uppercase tracking-[0.18em] text-white/45">Your workspace</p>
                 <nav className="flex-1 space-y-1 px-3" aria-label="Dashboard navigation">
-                    {navigation.map((item) => {
+                    {visibleNavigation.map((item) => {
                         const active = item.key === pageKey;
 
                         return (

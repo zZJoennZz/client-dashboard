@@ -102,7 +102,7 @@ class BusinessController extends Controller
 
     public function preview(Request $request, Business $business): View
     {
-        abort_unless($request->user()?->isSuperAdmin(), 404);
+        abort_unless($request->user()?->isSystemAdministrator(), 404);
         $business->load(['categories', 'images', 'hours', 'highlights', 'video']);
 
         return $this->profileView($business);

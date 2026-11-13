@@ -3,21 +3,22 @@
 use App\Http\Controllers\BusinessController;
 use App\Http\Controllers\BusinessMediaController;
 use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\MemberCommunicationPreferenceController;
 use App\Http\Controllers\MemberAccountController;
-use App\Http\Controllers\MemberBusinessProfileController;
-use App\Http\Controllers\MemberEventController;
 use App\Http\Controllers\MemberActivityController;
+use App\Http\Controllers\MemberBusinessProfileController;
+use App\Http\Controllers\MemberCommunicationPreferenceController;
+use App\Http\Controllers\MemberEventController;
 use App\Http\Controllers\MemberFileController;
+use App\Http\Controllers\MemberManagementController;
 use App\Http\Controllers\MemberReportController;
 use App\Http\Controllers\MemberResourceController;
 use App\Http\Controllers\PublicPageController;
-use App\Http\Controllers\SuperAdminController;
 use App\Http\Controllers\SuperAdminBusinessController;
 use App\Http\Controllers\SuperAdminCommunicationController;
 use App\Http\Controllers\SuperAdminContentController;
-use App\Http\Controllers\SuperAdminEventController;
+use App\Http\Controllers\SuperAdminController;
 use App\Http\Controllers\SuperAdminEngagementController;
+use App\Http\Controllers\SuperAdminEventController;
 use App\Http\Controllers\SuperAdminExportController;
 use App\Http\Controllers\SuperAdminMarketingController;
 use App\Http\Controllers\SuperAdminMembershipController;
@@ -36,43 +37,52 @@ Route::get('/contact', [PublicPageController::class, 'contact'])->name('contact'
 
 Route::middleware('auth')->group(function (): void {
     Route::get('/dashboard/data', [DashboardController::class, 'data'])->name('dashboard.data');
+    Route::get('/dashboard/api/members', [MemberManagementController::class, 'index'])
+        ->middleware('dashboard.module:users')->name('dashboard.members.index');
+    Route::put('/dashboard/api/members/{user}', [MemberManagementController::class, 'update'])
+        ->middleware('dashboard.module:users,write')->name('dashboard.members.update');
     Route::get('/dashboard', DashboardController::class)->name('dashboard');
     Route::put('/dashboard/businesses/{business}/profile', [MemberBusinessProfileController::class, 'update'])
-        ->name('dashboard.businesses.profile.update');
+        ->middleware('dashboard.module:business,write')->name('dashboard.businesses.profile.update');
     Route::patch('/dashboard/businesses/{business}/publication', [MemberBusinessProfileController::class, 'publish'])
-        ->name('dashboard.businesses.publication');
+        ->middleware('dashboard.module:business,write')->name('dashboard.businesses.publication');
     Route::post('/dashboard/businesses/{business}/images', [MemberBusinessProfileController::class, 'uploadImages'])
-        ->name('dashboard.businesses.images.store');
+        ->middleware('dashboard.module:business,write')->name('dashboard.businesses.images.store');
     Route::put('/dashboard/email-preferences', [MemberCommunicationPreferenceController::class, 'update'])
-        ->name('dashboard.email-preferences');
+        ->middleware('dashboard.module:settings,write')->name('dashboard.email-preferences');
     Route::put('/dashboard/account/profile', [MemberAccountController::class, 'updateProfile'])
-        ->name('dashboard.account.profile.update');
+        ->middleware('dashboard.module:settings,write')->name('dashboard.account.profile.update');
     Route::put('/dashboard/account/password', [MemberAccountController::class, 'updatePassword'])
-        ->name('dashboard.account.password.update');
+        ->middleware('dashboard.module:settings,write')->name('dashboard.account.password.update');
+    Route::post('/dashboard/events', [MemberEventController::class, 'storeEvent'])
+        ->middleware('dashboard.module:events,write')->name('dashboard.events.store');
+    Route::put('/dashboard/events/{event}', [MemberEventController::class, 'updateEvent'])
+        ->middleware('dashboard.module:events,write')->name('dashboard.events.update');
     Route::post('/dashboard/events/{event}/registrations', [MemberEventController::class, 'store'])
-        ->name('dashboard.events.register');
+        ->middleware('dashboard.module:events,write')->name('dashboard.events.register');
     Route::delete('/dashboard/event-registrations/{registration}', [MemberEventController::class, 'cancel'])
-        ->name('dashboard.events.cancel');
+        ->middleware('dashboard.module:events,write')->name('dashboard.events.cancel');
     Route::post('/dashboard/activity/reports/{report}/viewed', [MemberActivityController::class, 'reportViewed'])
-        ->name('dashboard.activity.reports.viewed');
+        ->middleware('dashboard.module:reports')->name('dashboard.activity.reports.viewed');
     Route::post('/dashboard/activity/resources/{resource}/viewed', [MemberActivityController::class, 'resourceViewed'])
-        ->name('dashboard.activity.resources.viewed');
+        ->middleware('dashboard.module:resources')->name('dashboard.activity.resources.viewed');
     Route::post('/dashboard/resources/{resource}/acknowledge', [MemberResourceController::class, 'acknowledge'])
-        ->name('dashboard.resources.acknowledge');
+        ->middleware('dashboard.module:resources,write')->name('dashboard.resources.acknowledge');
     Route::get('/dashboard/files/resources/{resource}', [MemberFileController::class, 'resource'])
-        ->name('dashboard.files.resources');
+        ->middleware('dashboard.module:resources')->name('dashboard.files.resources');
     Route::get('/dashboard/files/reports/{report}', [MemberFileController::class, 'report'])
-        ->name('dashboard.files.reports');
+        ->middleware('dashboard.module:reports')->name('dashboard.files.reports');
     Route::post('/dashboard/reports/submissions', [MemberReportController::class, 'store'])
-        ->name('dashboard.reports.submissions.store');
+        ->middleware('dashboard.module:reports,write')->name('dashboard.reports.submissions.store');
     Route::get('/dashboard/reports/submissions/{report}/download', [MemberReportController::class, 'download'])
-        ->name('dashboard.reports.submissions.download');
+        ->middleware('dashboard.module:reports')->name('dashboard.reports.submissions.download');
     Route::get('/dashboard/{path?}', DashboardController::class)
         ->where('path', '.*')
+        ->middleware('dashboard.module:path')
         ->name('dashboard.spa');
 });
 
-Route::middleware(['auth', 'can:super-admin'])
+Route::middleware(['auth', 'can:system-admin', 'system.module'])
     ->prefix('super-admin')
     ->name('super-admin.')
     ->group(function (): void {
@@ -126,6 +136,8 @@ Route::middleware(['auth', 'can:super-admin'])
         Route::post('/api/announcements/{announcement}/send', [SuperAdminCommunicationController::class, 'send'])->name('announcements.send');
         Route::post('/api/exports/{type}', [SuperAdminExportController::class, 'export'])->name('exports');
         Route::get('/api/accounts', [SuperAdminController::class, 'accounts'])->name('accounts.index');
+        Route::post('/api/accounts', [SuperAdminController::class, 'storeAccount'])->name('accounts.store');
+        Route::put('/api/accounts/{user}', [SuperAdminController::class, 'updateAccount'])->name('accounts.update');
         Route::get('/api/workspace/{section}', [SuperAdminController::class, 'workspaceData'])
             ->whereIn('section', ['memberships', 'content', 'reports', 'events', 'marketing', 'orders', 'services', 'billing', 'analytics', 'audit'])
             ->name('workspace');

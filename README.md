@@ -404,8 +404,9 @@ php artisan db:seed --class=RoleSeeder
 - Magic link expiry: 15 minutes (configurable in `config/fortify.php`)
 
 ### PDF Generation (DomPDF)
-- Monthly reports can be generated server-side and stored in `storage/app/reports/`
-- Reports are served via signed URLs (short-lived) after authorization check
+- Private uploads are stored under `storage/app/private` and served only through authenticated, authorized routes. Member-submitted private reports are available to their uploader, an administrator of the associated business, and backend Administrators or Super Administrators.
+- Public site assets belong under `storage/app/public`; run `php artisan storage:link` to expose them at `/storage`. Keep private uploads out of this directory.
+- Published resources and reports continue to use their configured visibility rules.
 
 ### Activity Log (Spatie)
 - Member activity tracked in `member_activity` table

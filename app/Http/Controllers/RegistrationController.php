@@ -32,6 +32,7 @@ class RegistrationController extends Controller implements CreatesNewUsers
             'phone' => ['nullable', 'string', 'max:40'],
             'website' => ['nullable', 'url', 'max:255'],
             'category' => ['required', 'string', 'max:100'],
+            'category_other' => ['required_if:category,Other', 'nullable', 'string', 'max:100'],
             'description' => ['nullable', 'string', 'max:2000'],
             'address_line_1' => ['nullable', 'string', 'max:255'],
             'city' => ['nullable', 'string', 'max:120'],
@@ -40,6 +41,11 @@ class RegistrationController extends Controller implements CreatesNewUsers
             'password' => ['required', 'confirmed', Password::min(8)],
             'terms' => ['accepted'],
         ])->validate();
+
+        if ($data['category'] === 'Other') {
+            $data['category'] = $data['category_other'];
+        }
+        unset($data['category_other']);
 
         return DB::transaction(function () use ($data): User {
             $user = User::create([

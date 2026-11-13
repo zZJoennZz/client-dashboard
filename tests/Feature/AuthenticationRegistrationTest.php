@@ -20,6 +20,9 @@ class AuthenticationRegistrationTest extends TestCase
             ->assertOk()
             ->assertViewIs('auth.register')
             ->assertSee('Stripe checkout will be added here later.')
+            ->assertSee('<select id="category" name="category" required', false)
+            ->assertSee('Arts &amp; Entertainment', false)
+            ->assertSee('Other</option>', false)
             ->assertSee('name="_token"', false);
 
         $response = $this->post(route('register.store'), [
@@ -75,9 +78,33 @@ class AuthenticationRegistrationTest extends TestCase
 
         $this->get(route('dashboard.data'))
             ->assertOk()
+            ->assertJsonPath('user.dashboard_role', 'member')
+            ->assertJsonPath('business.role', 'owner')
             ->assertJsonPath('business.name', 'Roanoke Test Bakery')
             ->assertJsonPath('membership.status', 'active')
             ->assertJsonPath('membership.payment_is_simulated', true);
+    }
+
+    public function test_registration_saves_a_custom_business_category(): void
+    {
+        $this->post(route('register.store'), [
+            'company_name' => 'Roanoke Pottery Studio',
+            'first_name' => 'Casey',
+            'last_name' => 'Clay',
+            'email' => 'casey@example.com',
+            'category' => 'Other',
+            'category_other' => 'Ceramics & Pottery',
+            'password' => 'StrongPassword123',
+            'password_confirmation' => 'StrongPassword123',
+            'terms' => '1',
+        ])->assertRedirect(route('dashboard'));
+
+        $business = Business::where('company_name', 'Roanoke Pottery Studio')->firstOrFail();
+        $this->assertSame(
+            'Ceramics & Pottery',
+            $business->categories()->wherePivot('is_primary', true)->value('name')
+        );
+        $this->assertSame('Ceramics & Pottery', data_get($business->settings, 'category'));
     }
 
     public function test_registration_requires_valid_confirmation_and_terms(): void
@@ -87,13 +114,13 @@ class AuthenticationRegistrationTest extends TestCase
             'first_name' => 'Taylor',
             'last_name' => 'Example',
             'email' => 'taylor@example.com',
-            'category' => 'Retail',
+            'category' => 'Other',
             'password' => 'StrongPassword123',
             'password_confirmation' => 'different-password',
         ]);
 
         $response->assertRedirect(route('register'))
-            ->assertSessionHasErrors(['password', 'terms']);
+            ->assertSessionHasErrors(['category_other', 'password', 'terms']);
         $this->assertDatabaseMissing('users', ['email' => 'taylor@example.com']);
         $this->assertDatabaseMissing('clients', ['company_name' => 'Needs Consent LLC']);
     }

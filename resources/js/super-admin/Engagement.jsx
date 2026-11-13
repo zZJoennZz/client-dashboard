@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import SearchableBusinessSelect from '../components/SearchableBusinessSelect';
 
 export default function Engagement({ url, requestJson }) {
     const [filters, setFilters] = useState({
@@ -187,32 +188,20 @@ export default function Engagement({ url, requestJson }) {
                     />
                 </label>
 
-                <label className="text-xs font-semibold">
-                    Business
-                    <select
-                        className={fieldClass}
-                        value={filters.business_id}
-                        onChange={(event) =>
-                            changeFilter(
-                                'business_id',
-                                event.target.value,
-                                [
-                                    'activity_page',
-                                    'event_page',
-                                    'participation_page',
-                                    'summary_page',
-                                ],
-                            )
-                        }
-                    >
-                        <option value="">All businesses</option>
-                        {data.businesses.map((business) => (
-                            <option key={business.id} value={business.id}>
-                                {business.company_name}
-                            </option>
-                        ))}
-                    </select>
-                </label>
+                <SearchableBusinessSelect
+                    label="Business filter"
+                    businesses={data.businesses}
+                    value={filters.business_id}
+                    onChange={(value) =>
+                        changeFilter(
+                            'business_id',
+                            value,
+                            ['activity_page', 'event_page', 'participation_page', 'summary_page'],
+                        )
+                    }
+                    emptyLabel="All businesses"
+                    inputClassName={fieldClass}
+                />
 
                 <label className="text-xs font-semibold">
                     Event

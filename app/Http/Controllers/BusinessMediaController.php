@@ -13,7 +13,7 @@ class BusinessMediaController extends Controller
     public function image(Request $request, BusinessImage $image): BinaryFileResponse
     {
         $business = $image->business;
-        abort_unless($request->user()?->isSuperAdmin() || $this->isPublic($business), 404);
+        abort_unless($request->user()?->isSystemAdministrator() || $this->isPublic($business), 404);
         abort_unless(Storage::disk('local')->exists($image->file_path), 404);
 
         return response()->file(Storage::disk('local')->path($image->file_path), [
@@ -25,7 +25,7 @@ class BusinessMediaController extends Controller
     public function video(Request $request, BusinessVideo $video): BinaryFileResponse
     {
         $business = $video->business;
-        abort_unless($request->user()?->isSuperAdmin() || $this->isPublic($business), 404);
+        abort_unless($request->user()?->isSystemAdministrator() || $this->isPublic($business), 404);
         abort_unless($video->source_type === 'upload' && $video->file_path, 404);
         abort_unless(Storage::disk('local')->exists($video->file_path), 404);
 

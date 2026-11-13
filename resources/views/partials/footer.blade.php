@@ -2,7 +2,7 @@
     <div class="mx-auto grid max-w-7xl gap-10 px-5 py-12 sm:px-8 sm:py-14 md:grid-cols-2 lg:grid-cols-4">
         <div>
             <a href="{{ route('home') }}" class="inline-flex min-h-11 items-center gap-3 rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--rr-warning)]">
-                <img src="{{ asset('the-argyle-buzz-logo.png') }}" alt="The Argyle Buzz" width="475" height="88" class="h-10 w-auto rounded bg-white px-1">
+                <img src="{{ asset('storage/branding/the-argyle-buzz-logo.png') }}" alt="The Argyle Buzz" width="475" height="88" class="h-10 w-auto rounded bg-white px-1">
             </a>
             <p class="mt-4 max-w-md text-sm leading-6 text-[var(--rr-border)]">A stronger local economy starts with knowing, choosing, and championing the people who make this place home.</p>
         </div>

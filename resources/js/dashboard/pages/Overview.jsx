@@ -19,46 +19,97 @@ export default function Overview({ data, navigate }) {
         { label: 'Resource views', value: engagement.resource_views_30_days },
         { label: 'Event registrations', value: engagement.rsvps_30_days },
     ];
+    const workspaceAreas = [
+        { title: 'Reports', description: 'Published business reports', href: '/dashboard/reports', count: data.reports.length, icon: '▧' },
+        { title: 'Events', description: 'Upcoming published events', href: '/dashboard/events', count: data.events.length, icon: '▦' },
+        { title: 'Resource library', description: 'Guides and member resources', href: '/dashboard/resources', count: data.resources.length, icon: '▱' },
+        { title: 'Marketing tools', description: 'Scheduled and completed activity', href: '/dashboard/marketing', count: data.marketing.length, icon: '✳' },
+    ];
 
     return (
-        <div className="space-y-6">
-            <section className="overflow-hidden rounded-2xl bg-[var(--rr-primary)] px-6 py-7 text-white shadow-sm sm:px-8 sm:py-9">
-                <p className="text-[10px] font-bold uppercase tracking-[0.17em] text-[var(--rr-accent-light)]">
-                    {data.user.is_super_admin
-                        ? 'Service provider workspace'
-                        : 'Member workspace'}
-                </p>
+        <div className="min-w-0 space-y-6 sm:space-y-8">
+            <section className="relative isolate overflow-hidden rounded-2xl bg-gradient-to-br from-neutral-950 via-[var(--rr-primary)] to-slate-800 px-5 py-7 text-white shadow-xl shadow-black/10 sm:rounded-3xl sm:px-8 sm:py-9 lg:px-10 lg:py-10">
+                <div aria-hidden="true" className="pointer-events-none absolute -right-24 -top-32 size-80 rounded-full border-[36px] border-white/[0.04]" />
+                <div aria-hidden="true" className="pointer-events-none absolute -bottom-36 right-1/4 size-72 rounded-full bg-[var(--rr-accent)]/10 blur-3xl" />
+                <div className="relative grid min-w-0 gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,0.65fr)] lg:items-center">
+                    <div className="min-w-0">
+                        <p className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.17em] text-white/65">
+                            <span className="size-2 rounded-full bg-[var(--rr-accent)]" />
+                            {data.user.is_super_admin ? 'Super Administrator workspace' : 'Member workspace'}
+                        </p>
 
-                <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
-                    Welcome back, {data.user.name}.
-                </h1>
+                        <h1 className="mt-4 max-w-3xl text-3xl font-semibold tracking-tight sm:text-4xl lg:text-5xl">
+                            Welcome back, {data.user.name || 'member'}.
+                        </h1>
 
-                <p className="mt-3 max-w-2xl text-sm leading-6 text-white/75">
-                    {data.user.is_super_admin
-                        ? 'Platform-wide visibility across all member businesses, accounts, and activity.'
-                        : 'Your home base for your business and The Argyle Buzz membership.'}
-                </p>
+                        <p className="mt-3 max-w-2xl text-sm leading-6 text-white/70 sm:text-base">
+                            {data.user.is_super_admin
+                                ? 'Platform-wide visibility across all member businesses, accounts, and activity.'
+                                : 'Your home base for your business, reports, events, and membership.'}
+                        </p>
 
-                {!data.user.is_super_admin && (
-                    <div className="mt-6 flex flex-wrap gap-3">
-                        <DashboardLink
-                            href="/dashboard/reports"
-                            navigate={navigate}
-                            className="inline-flex min-h-11 items-center rounded-lg bg-white px-4 py-2 text-sm font-semibold text-[var(--rr-primary)] hover:bg-white/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
-                        >
-                            View reports →
-                        </DashboardLink>
+                        {!data.user.is_super_admin && (
+                            <div className="mt-6 flex flex-wrap gap-3">
+                                <DashboardLink
+                                    href="/dashboard/reports"
+                                    navigate={navigate}
+                                    className="inline-flex min-h-11 items-center rounded-lg bg-white px-4 py-2 text-sm font-semibold text-[var(--rr-primary)] transition hover:-translate-y-0.5 hover:bg-white/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+                                >
+                                    View reports →
+                                </DashboardLink>
 
-                        <DashboardLink
-                            href="/dashboard/resources"
-                            navigate={navigate}
-                            className="inline-flex min-h-11 items-center rounded-lg border border-white/40 px-4 py-2 text-sm font-semibold text-white hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
-                        >
-                            Resource library →
-                        </DashboardLink>
+                                <DashboardLink
+                                    href="/dashboard/resources"
+                                    navigate={navigate}
+                                    className="inline-flex min-h-11 items-center rounded-lg border border-white/30 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+                                >
+                                    Resource library →
+                                </DashboardLink>
+                            </div>
+                        )}
                     </div>
-                )}
+                    <aside className="rounded-2xl border border-white/10 bg-white/[0.06] p-5 backdrop-blur-sm sm:p-6">
+                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-white/55">
+                            {data.user.is_super_admin ? 'Platform snapshot' : 'Your workspace'}
+                        </p>
+                        <p className="mt-3 truncate text-lg font-semibold">
+                            {data.user.is_super_admin ? `${data.businesses.length} businesses` : business?.name || 'No business connected'}
+                        </p>
+                        <div className="mt-4 grid grid-cols-2 gap-3 border-t border-white/10 pt-4">
+                            <div>
+                                <p className="text-xs text-white/55">{data.user.is_super_admin ? 'Active' : 'Membership'}</p>
+                                <p className="mt-1 truncate text-sm font-medium">
+                                    {data.user.is_super_admin
+                                        ? data.businesses.filter((item) => item.is_active).length
+                                        : membership?.status || 'Not connected'}
+                                </p>
+                            </div>
+                            <div>
+                                <p className="text-xs text-white/55">{data.user.is_super_admin ? 'Published' : 'Plan'}</p>
+                                <p className="mt-1 truncate text-sm font-medium">
+                                    {data.user.is_super_admin
+                                        ? data.businesses.filter((item) => item.directory_status === 'Published').length
+                                        : membership?.plan || 'No plan'}
+                                </p>
+                            </div>
+                        </div>
+                    </aside>
+                </div>
             </section>
+
+            {!data.user.is_super_admin && (
+                <section aria-label="Workspace at a glance" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    {workspaceAreas.map((area) => (
+                        <div key={area.title} className="flex min-w-0 items-center gap-4 rounded-2xl border border-[var(--rr-border)] bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md sm:p-5">
+                            <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-[var(--rr-accent-light)] text-lg font-semibold text-[var(--rr-accent)]" aria-hidden="true">{area.icon}</span>
+                            <div className="min-w-0">
+                                <p className="text-xs text-[var(--rr-neutral-mid)]">{area.title}</p>
+                                <p className="mt-1 text-2xl font-semibold tracking-tight">{area.count}</p>
+                            </div>
+                        </div>
+                    ))}
+                </section>
+            )}
 
             {data.user.is_super_admin && (
                 <Card eyebrow="Organization-wide access" title="All businesses">
@@ -152,12 +203,12 @@ export default function Overview({ data, navigate }) {
                                     Started {membership.start_date || 'date not recorded'}
                                 </p>
 
-                                {membership.payment_is_simulated && (
+                                {/* {membership.payment_is_simulated && (
                                     <p className="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">
                                         Test registration only: no payment was collected.
                                         Payment processing has not been connected.
                                     </p>
-                                )}
+                                )} */}
 
                                 <DashboardLink
                                     href="/dashboard/membership"
@@ -185,29 +236,22 @@ export default function Overview({ data, navigate }) {
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                    {[
-                        ['Reports', 'Published business reports', '/dashboard/reports', data.reports.length],
-                        ['Events', 'Upcoming published events', '/dashboard/events', data.events.length],
-                        ['Resource library', 'Guides and member resources', '/dashboard/resources', data.resources.length],
-                        ['Marketing tools', 'Scheduled and completed activity', '/dashboard/marketing', data.marketing.length],
-                    ].map(([title, description, href, count]) => (
+                    {workspaceAreas.map((area) => (
                         <DashboardLink
-                            key={title}
-                            href={href}
+                            key={area.title}
+                            href={area.href}
                             navigate={navigate}
-                            className="group rounded-xl border border-[var(--rr-border)] bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--rr-primary)]"
+                            className="group min-w-0 rounded-2xl border border-[var(--rr-border)] bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-1 hover:border-black/15 hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--rr-primary)]"
                         >
                             <div className="flex items-center justify-between gap-3">
-                                <h3 className="font-semibold text-[var(--rr-neutral-dark)]">{title}</h3>
-                                <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[var(--rr-accent-light)] text-sm font-bold text-[var(--rr-accent)]">
-                                    {count}
+                                <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-[var(--rr-accent-light)] text-lg font-semibold text-[var(--rr-accent)]" aria-hidden="true">
+                                    {area.icon}
                                 </span>
+                                <span className="text-xs font-semibold text-[var(--rr-neutral-mid)] transition group-hover:text-[var(--rr-primary)]">Open area →</span>
                             </div>
-                            <p className="mt-3 text-xs leading-5 text-[var(--rr-neutral-mid)]">
-                                {description}
-                            </p>
-                            <p className="mt-3 text-xs font-semibold text-[var(--rr-primary)] group-hover:text-[var(--rr-primary-light)]">
-                                Open area →
+                            <h3 className="mt-5 font-semibold text-[var(--rr-neutral-dark)]">{area.title}</h3>
+                            <p className="mt-2 min-h-10 text-xs leading-5 text-[var(--rr-neutral-mid)]">
+                                {area.description}
                             </p>
                         </DashboardLink>
                     ))}

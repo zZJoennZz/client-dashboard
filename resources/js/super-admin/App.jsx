@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import AdminWorkflows from './Workflows';
 import Engagement from './Engagement';
 import PlatformSettings from './PlatformSettings';
+import AccountEditor from './AccountEditor';
+import SearchableBusinessSelect from '../components/SearchableBusinessSelect';
 
 const navigation = [
     ['overview', 'Overview'],
@@ -66,6 +68,7 @@ export default function App({
     overviewUrl, engagementUrl, settingsUrl, settingsUpdateUrl, businessesUrl, accountsUrl, workspaceUrl, loginUrl,
     membershipsUrl, resourcesUrl, reportsUrl, eventsUrl, marketingUrl,
     servicesUrl, ordersUrl, announcementsUrl, exportUrl,
+    moduleAccess, roleLabel, canManageSystemRoles,
 }) {
     const [section, setSection] = useState(() => sectionFromPath(window.location.pathname));
     const [menuOpen, setMenuOpen] = useState(false);
@@ -94,13 +97,13 @@ export default function App({
             <aside className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col bg-[var(--rr-primary)] text-white transition-transform lg:translate-x-0 ${menuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
                 <div className="flex h-16 items-center justify-between border-b border-white/10 px-5">
                     <a href="/" className="rounded bg-white px-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--rr-warning)]">
-                        <img src="/the-argyle-buzz-logo.png" alt="The Argyle Buzz" width="475" height="88" className="h-10 w-auto max-w-[220px]" />
+                        <img src="/storage/branding/the-argyle-buzz-logo.png" alt="The Argyle Buzz" width="475" height="88" className="h-10 w-auto max-w-[220px]" />
                     </a>
                     <button type="button" aria-label="Close navigation" onClick={() => setMenuOpen(false)} className="min-h-11 min-w-11 rounded-lg text-white/80 hover:bg-white/10 lg:hidden">×</button>
                 </div>
-                <p className="px-5 pb-2 pt-5 text-[10px] font-bold uppercase tracking-[0.16em] text-white/50">Service provider</p>
-                <nav aria-label="Service provider navigation" className="flex-1 space-y-1 overflow-y-auto px-3 pb-4">
-                    {navigation.map(([key, label]) => {
+                <p className="px-5 pb-2 pt-5 text-[10px] font-bold uppercase tracking-[0.16em] text-white/50">{roleLabel}</p>
+                <nav aria-label={`${roleLabel} navigation`} className="flex-1 space-y-1 overflow-y-auto px-3 pb-4">
+                    {navigation.filter(([key]) => moduleAccess?.[key]?.read === true).map(([key, label]) => {
                         const ready = availableSections.has(key);
                         return ready ? (
                             <a key={key} href={key === 'overview' ? '/super-admin' : `/super-admin/${key}`} aria-current={section === key ? 'page' : undefined} onClick={(event) => {
@@ -117,7 +120,7 @@ export default function App({
                     })}
                 </nav>
                 <div className="border-t border-white/10 p-4">
-                    <a href="/dashboard" className="flex min-h-11 items-center rounded-lg px-3 text-sm text-white/70 hover:bg-white/5 hover:text-white">Member workspace</a>
+                    <a href="/" className="flex min-h-11 items-center rounded-lg px-3 text-sm text-white/70 hover:bg-white/5 hover:text-white">Public website</a>
                     <form method="POST" action="/logout" className="mt-1">
                         <input type="hidden" name="_token" value={document.querySelector('meta[name="csrf-token"]')?.content ?? ''} />
                         <button type="submit" className="min-h-11 w-full rounded-lg px-3 text-left text-sm text-white/70 hover:bg-white/5 hover:text-white">Log out</button>
@@ -129,7 +132,7 @@ export default function App({
                     <button type="button" aria-label="Open navigation menu" onClick={() => setMenuOpen(true)} className="flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-[var(--rr-border)] text-[var(--rr-primary)] lg:hidden">☰</button>
                     <div className="min-w-0">
                         <h1 className="truncate text-sm font-semibold">{title}</h1>
-                        <p className="hidden text-xs text-[var(--rr-neutral-mid)] sm:block">Platform-wide service provider control center</p>
+                        <p className="hidden text-xs text-[var(--rr-neutral-mid)] sm:block">Platform-wide system administration</p>
                     </div>
                 </header>
                 <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 sm:py-8 lg:px-10">
@@ -137,7 +140,14 @@ export default function App({
                     {section === 'engagement' && <Engagement url={engagementUrl} requestJson={requestJson} />}
                     {section === 'settings' && <PlatformSettings url={settingsUrl} updateUrl={settingsUpdateUrl} requestJson={requestJson} />}
                     {section === 'businesses' && <Businesses url={businessesUrl} requestJson={requestJson} />}
-                    {section === 'accounts' && <Accounts url={accountsUrl} requestJson={requestJson} exportUrl={exportUrl} />}
+                    {section === 'accounts' && <Accounts
+                        url={accountsUrl}
+                        requestJson={requestJson}
+                        exportUrl={exportUrl}
+                        canManageSystemRoles={canManageSystemRoles}
+                        canManagePermissions={canManageSystemRoles}
+                        canWriteAccounts={moduleAccess?.accounts?.write === true}
+                    />}
                     {section === null && <PageNotFound navigate={navigate} />}
                     {['memberships', 'content', 'reports', 'events', 'marketing', 'communications'].includes(section) && (
                         <AdminWorkflows
@@ -165,7 +175,7 @@ export default function App({
                     {section === 'orders' && <AdminWorkflows key="services" section="services" workspaceUrl={workspaceUrl} urls={{ services: servicesUrl }} exportUrl={exportUrl} />}
                     {section && !availableSections.has(section) && <PlannedSection title={title} />}
                     <footer className="border-t border-[var(--rr-border)] pt-4 text-xs leading-5 text-[var(--rr-neutral-mid)]">
-                        Financial totals reflect recorded order data only. Membership registration placeholders are not actual payments.
+                        Hello.
                     </footer>
                 </main>
             </div>
@@ -196,7 +206,7 @@ function Overview({ url, requestJson }) {
     const metrics = data.metrics;
     const cards = [
         ['Businesses', metrics.businesses_total, `${metrics.businesses_published} published · ${metrics.businesses_unpublished} unpublished`],
-        ['Member accounts', metrics.regular_accounts, `${metrics.super_admins} service provider accounts · ${metrics.new_accounts_30_days} new in 30 days`],
+        ['Member accounts', metrics.regular_accounts, `${metrics.administrator_accounts} Administrators · ${metrics.super_admins} Super Administrators · ${metrics.new_accounts_30_days} new in 30 days`],
         ['Active memberships', data.membership_statuses.active ?? 0, 'Counts use membership records'],
         ['Incomplete profiles', metrics.incomplete_businesses, 'Missing description, contact email, or website'],
         ['Upcoming events', metrics.upcoming_events_30_days, `${metrics.event_registrations} active registrations total`],
@@ -257,12 +267,12 @@ function Overview({ url, requestJson }) {
                     ) : <Empty title="No administrative actions recorded">Business publication changes and other audited actions will appear here.</Empty>}
                 </Panel>
             </div>
-            <Panel title="Metric definitions" eyebrow="Sources and caveats">
+            {/* <Panel title="Metric definitions" eyebrow="Sources and caveats">
                 <dl className="grid gap-4 md:grid-cols-2">
                     {Object.entries(data.metric_definitions).map(([key, definition]) => <div key={key}><dt className="text-sm font-semibold">{key.replaceAll('_', ' ')}</dt><dd className="mt-1 text-sm leading-6 text-[var(--rr-neutral-mid)]">{definition}</dd></div>)}
                 </dl>
                 <p className="mt-4 border-t border-[var(--rr-border)] pt-4 text-xs leading-5 text-[var(--rr-neutral-mid)]">No sales tax, referred website traffic, or independently verified business growth figures are shown because there is no approved source or calculation method currently connected.</p>
-            </Panel>
+            </Panel> */}
         </>
     );
 }
@@ -435,7 +445,7 @@ function BusinessDetail({ business, onClose, onEdit }) {
             <div className="mt-6 grid gap-6 border-t border-[var(--rr-border)] pt-5 lg:grid-cols-2">
                 <div>
                     <h3 className="font-semibold">Associated accounts</h3>
-                    {business.members.length ? <ul className="mt-3 divide-y divide-[var(--rr-border)]">{business.members.map((member) => <li key={member.id} className="py-3 first:pt-0"><p className="text-sm font-medium">{member.name} <span className="font-normal text-[var(--rr-neutral-mid)]">· {member.role}</span></p><p className="mt-1 text-xs text-[var(--rr-neutral-mid)]">{member.email}{member.account_type === 'super_admin' ? ' · Service provider' : ''}</p></li>)}</ul> : <p className="mt-2 text-sm text-[var(--rr-neutral-mid)]">No active accounts are associated.</p>}
+                    {business.members.length ? <ul className="mt-3 divide-y divide-[var(--rr-border)]">{business.members.map((member) => <li key={member.id} className="py-3 first:pt-0"><p className="text-sm font-medium">{member.name} <span className="font-normal text-[var(--rr-neutral-mid)]">· {member.role}</span></p><p className="mt-1 text-xs text-[var(--rr-neutral-mid)]">{member.email}{member.account_type === 'super_admin' ? ' · Super Administrator' : member.account_type === 'administrator' ? ' · Administrator' : ' · Member'}</p></li>)}</ul> : <p className="mt-2 text-sm text-[var(--rr-neutral-mid)]">No active accounts are associated.</p>}
                 </div>
                 <div>
                     <h3 className="font-semibold">Membership history</h3>
@@ -723,18 +733,47 @@ function FormInput({ name, label, type = 'text', initial = '', required = false 
     return <label className="block text-xs font-semibold">{label}<input className={`${inputClass} mt-1`} type={type} name={name} defaultValue={initial} required={required} /></label>;
 }
 
-function Accounts({ url, requestJson, exportUrl }) {
+function Accounts({ url, requestJson, exportUrl, canManageSystemRoles, canManagePermissions, canWriteAccounts }) {
     const [searchInput, setSearchInput] = useState('');
     const [filters, setFilters] = useState({ search: '', account_type: '', page: 1 });
     const [exportError, setExportError] = useState('');
+    const [editorOpen, setEditorOpen] = useState(false);
+    const [editingAccount, setEditingAccount] = useState(null);
+    const [saving, setSaving] = useState(false);
+    const [editorError, setEditorError] = useState('');
     const params = useMemo(() => new URLSearchParams(Object.entries(filters).filter(([, value]) => value !== '')), [filters]);
     const { loading, error, data, refresh } = useRemoteData(() => requestJson(`${url}?${params}`), [url, params, requestJson]);
+
+    function openEditor(account = null) {
+        setEditingAccount(account);
+        setEditorError('');
+        setEditorOpen(true);
+    }
+
+    async function saveAccount(form) {
+        setSaving(true);
+        setEditorError('');
+        try {
+            await requestJson(editingAccount ? `${url}/${editingAccount.id}` : url, {
+                method: editingAccount ? 'PUT' : 'POST',
+                body: JSON.stringify(form),
+            });
+            setEditorOpen(false);
+            await refresh();
+        } catch (requestError) {
+            setEditorError(requestError.message || 'The account could not be saved.');
+        } finally {
+            setSaving(false);
+        }
+    }
 
     return (
         <>
             <div className="flex flex-wrap items-end justify-between gap-3">
-                <PageTitle eyebrow="Access directory" title="Members and accounts" description="Review registered accounts, their business associations, and account type. Permission changes are intentionally not exposed here." />
-                <button type="button" className={secondaryButton} onClick={async () => {
+                <PageTitle eyebrow="Account management" title="Accounts" description="Manage Member, Administrator, and Super Administrator accounts. Only Super Administrators can change Administrator module permissions." />
+                <div className="flex flex-wrap gap-2">
+                    {canWriteAccounts && <button type="button" className={primaryButton} onClick={() => openEditor()}>{canManageSystemRoles ? 'Create account' : 'Create Member account'}</button>}
+                    <button type="button" className={secondaryButton} onClick={async () => {
                     try {
                         const response = await fetch(`${exportUrl}/members`, {
                             method: 'POST', credentials: 'same-origin',
@@ -749,7 +788,8 @@ function Accounts({ url, requestJson, exportUrl }) {
                         anchor.click();
                         URL.revokeObjectURL(anchor.href);
                     } catch (requestError) { setExportError(requestError.message); }
-                }}>Export members CSV</button>
+                    }}>Export members CSV</button>
+                </div>
             </div>
             {exportError && <InlineError>{exportError}</InlineError>}
             <Panel>
@@ -759,7 +799,7 @@ function Accounts({ url, requestJson, exportUrl }) {
                 }} className="flex flex-col gap-3 sm:flex-row">
                     <label htmlFor="account-search" className="sr-only">Search accounts</label>
                     <input id="account-search" value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="Name or email address" className={`${inputClass} flex-1`} />
-                    <Select label="Account type" value={filters.account_type} onChange={(value) => setFilters((current) => ({ ...current, account_type: value, page: 1 }))} options={[[UserType.regular, 'Regular account'], [UserType.admin, 'Service provider']]} />
+                    <Select label="Role" value={filters.account_type} onChange={(value) => setFilters((current) => ({ ...current, account_type: value, page: 1 }))} options={[[UserType.regular, 'Member'], [UserType.administrator, 'Administrator'], [UserType.superAdmin, 'Super Administrator']]} />
                     <button type="submit" className={primaryButton}>Search</button>
                 </form>
             </Panel>
@@ -767,14 +807,15 @@ function Accounts({ url, requestJson, exportUrl }) {
                 <Panel title={`${data.meta.total} accounts`} eyebrow="Registered users">
                     {data.data.length ? <>
                         <div className="overflow-x-auto">
-                            <table className="w-full min-w-[42rem] text-left text-sm">
-                                <thead className="text-xs uppercase tracking-wide text-[var(--rr-neutral-mid)]"><tr><th className="pb-3 pr-4 font-semibold">Member</th><th className="pb-3 pr-4 font-semibold">Account type</th><th className="pb-3 pr-4 font-semibold">Business associations</th><th className="pb-3 font-semibold">Joined</th></tr></thead>
+                            <table className="w-full min-w-[48rem] text-left text-sm">
+                                <thead className="text-xs uppercase tracking-wide text-[var(--rr-neutral-mid)]"><tr><th className="pb-3 pr-4 font-semibold">Account</th><th className="pb-3 pr-4 font-semibold">Role</th><th className="pb-3 pr-4 font-semibold">Business associations</th><th className="pb-3 pr-4 font-semibold">Joined</th><th className="pb-3 text-right font-semibold">Action</th></tr></thead>
                                 <tbody className="divide-y divide-[var(--rr-border)]">
                                     {data.data.map((account) => <tr key={account.id}>
                                         <td className="py-4 pr-4"><p className="font-semibold">{account.name}</p><p className="mt-1 text-xs text-[var(--rr-neutral-mid)]">Account ID #{account.id} · {account.email}</p></td>
-                                        <td className="py-4 pr-4">{account.account_type === UserType.admin ? 'Service provider' : 'Regular account'}{!account.is_active && <span className="ml-2 text-xs text-[var(--rr-error)]">Inactive</span>}</td>
-                                        <td className="py-4 pr-4">{account.businesses.length ? account.businesses.map((business) => business.name).join(', ') : 'No active business'}</td>
+                                        <td className="py-4 pr-4">{account.role}{!account.is_active && <span className="ml-2 text-xs text-[var(--rr-error)]">Inactive</span>}</td>
+                                        <td className="py-4 pr-4">{account.businesses.length ? account.businesses.map((business) => `${business.name} (${business.role})`).join(', ') : 'No active business'}</td>
                                         <td className="py-4 text-[var(--rr-neutral-mid)]">{date(account.created_at)}</td>
+                                        <td className="py-4 text-right">{canWriteAccounts && (canManageSystemRoles || account.role_key === 'member') && <button type="button" onClick={() => openEditor(account)} className={secondaryButton}>Edit</button>}</td>
                                     </tr>)}
                                 </tbody>
                             </table>
@@ -783,6 +824,19 @@ function Accounts({ url, requestJson, exportUrl }) {
                     </> : <Empty title="No accounts match">Try a different search or account-type filter.</Empty>}
                 </Panel>
             )}
+            {editorOpen && data && <AccountEditor
+                key={editingAccount?.id ?? 'new'}
+                account={editingAccount}
+                businessOptions={data.business_options}
+                modules={data.modules}
+                memberModules={data.member_modules}
+                saving={saving}
+                error={editorError}
+                canManageSystemRoles={canManageSystemRoles}
+                canManagePermissions={canManagePermissions}
+                onSave={saveAccount}
+                onClose={() => setEditorOpen(false)}
+            />}
         </>
     );
 }
@@ -807,6 +861,7 @@ function WorkspaceList({ section, url, requestJson, title }) {
     const params = useMemo(() => new URLSearchParams(Object.entries(filters).filter(([, value]) => value !== '')), [filters]);
     const { loading, error, data, refresh } = useRemoteData(() => requestJson(`${url}/${section}?${params}`), [url, section, params, requestJson]);
     const columns = listColumns[section] ?? [];
+    const showBusinessFilter = ['billing', 'analytics'].includes(section);
     const pageTitle = title ?? navigation.find(([key]) => key === section)?.[1] ?? section;
     const descriptions = {
         memberships: 'Membership records and their separate recorded payment status. No payment status is inferred from membership status.',
@@ -831,7 +886,14 @@ function WorkspaceList({ section, url, requestJson, title }) {
                 <form onSubmit={(event) => { event.preventDefault(); setFilters((current) => ({ ...current, search: searchInput.trim(), page: 1 })); }} className="grid gap-3 sm:grid-cols-4">
                     <label className="text-xs font-semibold">Search<input className={`${inputClass} mt-1`} value={searchInput} onChange={(event) => setSearchInput(event.target.value)} /></label>
                     <label className="text-xs font-semibold">Status<select className={`${inputClass} mt-1`} value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value, page: 1 }))}><option value="">All statuses</option>{(section === 'billing' ? ['confirmed', 'pending', 'failed', 'reversed'] : []).map((status) => <option key={status}>{status}</option>)}</select></label>
-                    <label className="text-xs font-semibold">Business ID<input className={`${inputClass} mt-1`} value={filters.business_id} onChange={(event) => setFilters((current) => ({ ...current, business_id: event.target.value, page: 1 }))} /></label>
+                    {showBusinessFilter && <SearchableBusinessSelect
+                        label="Business filter"
+                        businesses={data.business_options ?? []}
+                        value={filters.business_id}
+                        onChange={(value) => setFilters((current) => ({ ...current, business_id: value, page: 1 }))}
+                        emptyLabel="All businesses"
+                        inputClassName={`${inputClass} mt-1`}
+                    />}
                     <div className="flex items-end gap-2"><button className={primaryButton}>Apply filters</button>{section === 'billing' && <button type="button" className={secondaryButton} onClick={async () => {
                         setExportError('');
                         try {
@@ -917,7 +979,7 @@ function Pagination({ meta, onPage }) {
 }
 
 function Loading() {
-    return <div aria-label="Loading service provider data" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><div className="h-32 animate-pulse rounded-xl bg-white" /><div className="h-32 animate-pulse rounded-xl bg-white" /><div className="h-32 animate-pulse rounded-xl bg-white" /><div className="h-32 animate-pulse rounded-xl bg-white" /></div>;
+    return <div aria-label="Loading system administration data" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><div className="h-32 animate-pulse rounded-xl bg-white" /><div className="h-32 animate-pulse rounded-xl bg-white" /><div className="h-32 animate-pulse rounded-xl bg-white" /><div className="h-32 animate-pulse rounded-xl bg-white" /></div>;
 }
 
 function ErrorState({ message, onRetry }) {
@@ -948,7 +1010,7 @@ function currency(value, code = 'USD') {
     }
 }
 
-const UserType = { regular: 'regular', admin: 'super_admin' };
+const UserType = { regular: 'regular', administrator: 'administrator', superAdmin: 'super_admin' };
 const inputClass = 'min-h-11 w-full rounded-lg border border-[var(--rr-border)] bg-white px-3 py-2 text-sm focus:border-[var(--rr-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--rr-primary)]/20';
 const primaryButton = 'min-h-11 rounded-lg bg-[var(--rr-primary)] px-4 text-sm font-semibold text-white hover:bg-[var(--rr-primary-light)] disabled:cursor-not-allowed disabled:opacity-40';
 const secondaryButton = 'min-h-10 rounded-lg border border-[var(--rr-border)] px-3 text-xs font-semibold hover:bg-[var(--rr-neutral-light)] disabled:cursor-not-allowed disabled:opacity-40';

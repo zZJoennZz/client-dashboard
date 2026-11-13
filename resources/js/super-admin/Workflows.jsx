@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import SearchableBusinessSelect from '../components/SearchableBusinessSelect';
 
 const input = 'min-h-11 w-full rounded-lg border border-[var(--rr-border)] bg-white px-3 py-2 text-sm focus:border-[var(--rr-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--rr-primary)]/20';
 const button = 'min-h-10 rounded-lg bg-[var(--rr-primary)] px-3 text-xs font-semibold text-white hover:bg-[var(--rr-primary-light)] disabled:opacity-50';
@@ -7,7 +8,7 @@ const secondary = 'min-h-10 rounded-lg border border-[var(--rr-border)] px-3 tex
 const schemas = {
     content: [
         ['title', 'Title', 'text', true], ['description', 'Description', 'textarea'],
-        ['business_id', 'Business ID (optional; see Member businesses)', 'number'], ['resource_group', 'Resource group', 'select', true, ['general', 'guideline', 'how_to']],
+        ['business_id', 'Business (optional; blank makes this resource shared)', 'business'], ['resource_group', 'Resource group', 'select', true, ['general', 'guideline', 'how_to']],
         ['resource_type', 'Resource type', 'select', true, ['article', 'pdf', 'video', 'link']], ['category', 'Category', 'text'], ['tags', 'Category tags (comma separated)', 'text'],
         ['content', 'Article / document text', 'textarea'], ['file_url', 'External resource URL', 'url'], ['video_embed_url', 'Video embed URL', 'url'],
         ['estimated_minutes', 'Estimated minutes', 'number'], ['requires_acknowledgment', 'Requires business acknowledgment', 'checkbox'],
@@ -17,13 +18,13 @@ const schemas = {
     ],
     reports: [
         ['title', 'Title', 'text', true], ['description', 'Description', 'textarea'],
-        ['business_id', 'Business ID (see Member businesses)', 'number', true], ['reporting_period', 'Reporting period', 'text'],
+        ['business_id', 'Business', 'business', true], ['reporting_period', 'Reporting period', 'text'],
         ['status', 'Status', 'select', true, ['draft', 'published']],
         ['visibility', 'Visibility', 'select', true, ['private', 'member', 'public']],
         ['file', 'Report file (required for new report; max 20MB)', 'file'],
     ],
     events: [
-        ['title', 'Title', 'text', true], ['business_id', 'Business ID (see Member businesses)', 'number', true],
+        ['title', 'Title', 'text', true], ['business_id', 'Business', 'business', true],
         ['description', 'Description', 'textarea'], ['location', 'Location', 'text'],
         ['meeting_url', 'Meeting URL', 'url'], ['starts_at', 'Starts at', 'datetime-local', true],
         ['ends_at', 'Ends at', 'datetime-local', true], ['registration_deadline', 'Registration deadline', 'datetime-local'],
@@ -32,7 +33,7 @@ const schemas = {
         ['is_published', 'Published', 'checkbox'],
     ],
     marketing: [
-        ['title', 'Activity title', 'text', true], ['scope', 'Activity scope', 'select', true, ['business', 'program']], ['business_id', 'Business ID (optional for program activities)', 'number'],
+        ['title', 'Activity title', 'text', true], ['scope', 'Activity scope', 'select', true, ['business', 'program']], ['business_id', 'Business (optional for program activities)', 'business'],
         ['promotion_type', 'Promotion type', 'text', true], ['platform', 'Platform', 'text'],
         ['scheduled_at', 'Scheduled at', 'datetime-local'], ['status', 'Status', 'select', true, ['planned', 'scheduled', 'completed', 'cancelled']],
         ['responsible_admin_id', 'Assigned provider staff ID', 'number'], ['caption', 'Content / caption', 'textarea'],
@@ -90,6 +91,7 @@ export default function AdminWorkflows({ section, workspaceUrl, urls, exportUrl 
     const orders = section === 'orders';
     const services = section === 'services';
     const communications = section === 'communications';
+    const showBusinessFilter = ['memberships', 'content', 'reports', 'events', 'marketing', 'orders'].includes(section);
     const [filters, setFilters] = useState({ page: 1, search: '', status: '', business_id: '' });
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -171,6 +173,7 @@ export default function AdminWorkflows({ section, workspaceUrl, urls, exportUrl 
             for (const [key, , type] of schema) {
                 if (type === 'checkbox') payload[key] = form.has(key) ? '1' : '0';
                 if (type === 'number' && payload[key] === '') payload[key] = null;
+                if (type === 'business') payload[key] = payload[key] === '' ? null : Number(payload[key]);
                 if (type === 'datetime-local' && payload[key]) payload[key] = new Date(payload[key]).toISOString();
             }
         }
@@ -293,7 +296,7 @@ export default function AdminWorkflows({ section, workspaceUrl, urls, exportUrl 
     return (
         <div className="space-y-5">
             <header>
-                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--rr-accent)]">Service provider workflow</p>
+                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--rr-accent)]">Platform workflow</p>
                 <h2 className="mt-2 text-2xl font-semibold">{title}</h2>
                 <p className="mt-2 text-sm leading-6 text-[var(--rr-neutral-mid)]">{explanation(section)}</p>
             </header>
@@ -302,7 +305,7 @@ export default function AdminWorkflows({ section, workspaceUrl, urls, exportUrl 
 
             {(schema.length > 0 || communications) && <Panel title={editingId ? 'Edit record' : 'Create new record'}>
                 <form key={editingId || 'new'} id={communications ? 'announcement-form' : undefined} onSubmit={submit} className="grid gap-3 sm:grid-cols-2">
-                    {schema.map(([key, label, type, required, options]) => <Field key={key} name={key} label={label} type={type} required={required} options={options} value={record[key]} onChange={(value) => setField(key, value)} />)}
+                    {schema.map(([key, label, type, required, options]) => <Field key={key} name={key} label={label} type={type} required={required} options={options} businesses={data?.business_options ?? []} value={record[key]} onChange={(value) => setField(key, value)} />)}
                     {communications && <>
                         <Field name="subject" label="Subject" required value={record.subject} />
                         <Field name="body" label="Message" type="textarea" required value={record.body} />
@@ -329,9 +332,14 @@ export default function AdminWorkflows({ section, workspaceUrl, urls, exportUrl 
                             <option value="">All payment states</option>{['unpaid', 'partially_paid', 'paid', 'refunded', 'waived'].map((status) => <option key={status}>{status}</option>)}
                         </select>
                     </label>}
-                    <label className="text-xs font-semibold">Business ID
-                        <input className={`${input} mt-1 w-36`} value={filters.business_id} onChange={(event) => setFilters((current) => ({ ...current, business_id: event.target.value, page: 1 }))} />
-                    </label>
+                    {showBusinessFilter && <SearchableBusinessSelect
+                        label="Business filter"
+                        businesses={data?.business_options ?? []}
+                        value={filters.business_id}
+                        onChange={(value) => setFilters((current) => ({ ...current, business_id: value, page: 1 }))}
+                        emptyLabel="All businesses"
+                        inputClassName={`${input} mt-1`}
+                    />}
                     <label className="text-xs font-semibold">From<input type="date" className={`${input} mt-1`} value={filters.from || ''} onChange={(event) => setFilters((current) => ({ ...current, from: event.target.value, page: 1 }))} /></label>
                     <label className="text-xs font-semibold">To<input type="date" className={`${input} mt-1`} value={filters.to || ''} onChange={(event) => setFilters((current) => ({ ...current, to: event.target.value, page: 1 }))} /></label>
                     <button type="button" className={secondary} onClick={() => setFilters((current) => ({ ...current, search: query, page: 1 }))}>Apply filters</button>
@@ -374,7 +382,20 @@ export default function AdminWorkflows({ section, workspaceUrl, urls, exportUrl 
     );
 }
 
-function Field({ name, label, type = 'text', required = false, options = [], value, onChange }) {
+function Field({ name, label, type = 'text', required = false, options = [], businesses = [], value, onChange }) {
+    if (type === 'business') {
+        return <SearchableBusinessSelect
+            name={name}
+            label={label}
+            businesses={businesses}
+            value={value ?? ''}
+            onChange={onChange}
+            required={required}
+            emptyLabel={required ? 'Select a business' : 'No business / shared'}
+            inputClassName={`${input} mt-1`}
+        />;
+    }
+
     const common = { name, required, className: `${input} mt-1`, defaultValue: value ?? (name === 'scope' ? 'business' : '') };
     return <label className={`block text-xs font-semibold ${type === 'textarea' ? 'sm:col-span-2' : ''}`}>{label}
         {type === 'textarea' ? <textarea {...common} rows="3" /> :

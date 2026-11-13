@@ -146,7 +146,7 @@ export default function Settings({ data, onRefresh }) {
                                 ['State / region', data.user.state],
                                 ['Postal code', data.user.postal_code],
                                 ['Country', data.user.country],
-                                ['Account type', data.user.is_super_admin ? 'Service provider' : 'Regular account'],
+                                ['Role', data.user.is_super_admin ? 'Super Administrator' : data.user.dashboard_role === 'administrator' ? 'Administrator' : 'Member'],
                             ].map(([label, value]) => <Definition key={label} label={label} value={value} />)}
                         </dl>
                     ) : (
