@@ -86,13 +86,20 @@ class DashboardController extends Controller
 
         $reportSubmissions = Report::query()
             ->where('created_by', $user->id)
+            ->with('aiAnalysis:id,report_id,status')
             ->latest('submitted_at')
             ->get(['id', 'business_id', 'title', 'description', 'reporting_period', 'reporting_period_start', 'reporting_period_end', 'status', 'review_feedback', 'submitted_at', 'reviewed_at', 'file_name'])
             ->map(function (Report $report) use ($businessNames): array {
-                return $this->withBusinessName($report->only([
+                $record = $this->withBusinessName($report->only([
                     'id', 'business_id', 'title', 'description', 'reporting_period', 'reporting_period_start', 'reporting_period_end', 'status',
                     'review_feedback', 'submitted_at', 'reviewed_at', 'file_name',
                 ]), $businessNames);
+
+                if ($report->status === 'published' && $report->aiAnalysis?->status === 'ready') {
+                    $record['ai_summary_url'] = route('dashboard.reports.submissions.summary', $report);
+                }
+
+                return $record;
             });
 
         $eventsQuery = Event::query()
@@ -174,25 +181,13 @@ class DashboardController extends Controller
             });
 
         $marketingQuery = MarketingActivity::query()
-            ->where(function (Builder $query) use ($businessIds): void {
-                $query->whereIn('business_id', $businessIds)->orWhere('scope', 'program');
-            })
             ->orderByRaw('scheduled_at IS NULL')
             ->orderBy('scheduled_at');
         if (! $isSuperAdmin) {
             $marketingQuery->whereIn('status', ['planned', 'scheduled', 'completed']);
         }
         $marketing = $marketingQuery
-            ->get(['id', 'business_id', 'scope', 'title', 'description', 'member_description', 'promotion_type', 'platform', 'published_url', 'scheduled_at', 'completed_at', 'status'])
-            ->map(function (MarketingActivity $activity) use ($businessNames, $isSuperAdmin): array {
-                $record = $isSuperAdmin
-                    ? $activity->toArray()
-                    : $activity->only(['id', 'business_id', 'scope', 'title', 'member_description', 'promotion_type', 'platform', 'published_url', 'scheduled_at', 'completed_at', 'status']);
-
-                return $this->withBusinessName($record, $businessNames);
-            });
-        $highlights = $marketing->where('scope', 'business')->values();
-        $programActivities = $marketing->where('scope', 'program')->values();
+            ->get(['id', 'title', 'description', 'member_description', 'promotion_type', 'platforms', 'scheduled_at', 'completed_at', 'status']);
 
         $businessData = $canRead('business') ? $businesses->map(
             fn (Business $item): array => $this->businessData($item, $isSuperAdmin, $canRead('membership'))
@@ -293,9 +288,8 @@ class DashboardController extends Controller
             'report_submissions' => $canRead('reports') ? $reportSubmissions : [],
             'events' => $canRead('events') ? $events : [],
             'resources' => $canRead('resources') ? $resources : [],
-            'marketing' => $canRead('marketing') ? $marketing : [],
-            'highlights' => $canRead('marketing') ? $highlights : [],
-            'program_activities' => $canRead('marketing') ? $programActivities : [],
+            'marketing_activities' => $canRead('marketing') ? $marketing : [],
+            'marketing_options' => config('marketing'),
             'activity' => $activity,
             'participation' => $canRead('events') ? $participation : [],
             'attendance_history' => $canRead('events') ? $attendanceHistory : [],

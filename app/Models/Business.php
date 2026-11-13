@@ -119,11 +119,6 @@ class Business extends Model
         return $this->hasMany(Event::class, 'business_id');
     }
 
-    public function marketingActivities(): HasMany
-    {
-        return $this->hasMany(MarketingActivity::class, 'business_id');
-    }
-
     public function orders(): HasMany
     {
         return $this->hasMany(Order::class, 'business_id');

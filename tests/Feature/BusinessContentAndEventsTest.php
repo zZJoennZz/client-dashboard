@@ -11,6 +11,7 @@ use App\Models\Resource;
 use App\Models\User;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class BusinessContentAndEventsTest extends TestCase
@@ -55,22 +56,18 @@ class BusinessContentAndEventsTest extends TestCase
         $this->assertSame($business->id, $publicResource->business->id);
     }
 
-    public function test_marketing_activity_belongs_to_business_and_admin(): void
+    public function test_marketing_activities_are_global_and_track_only_the_creator(): void
     {
-        $business = Business::factory()->create();
-        $admin = User::factory()->create();
         $creator = User::factory()->create();
 
         $activity = MarketingActivity::factory()->create([
-            'business_id' => $business->id,
-            'responsible_admin_id' => $admin->id,
             'created_by' => $creator->id,
             'status' => 'scheduled',
         ]);
 
-        $this->assertSame($business->id, $activity->business->id);
-        $this->assertSame($admin->id, $activity->responsibleAdmin->id);
         $this->assertSame($creator->id, $activity->creator->id);
+        $this->assertFalse(Schema::hasColumn('marketing_activities', 'business_id'));
+        $this->assertFalse(Schema::hasColumn('marketing_activities', 'responsible_admin_id'));
     }
 
     public function test_event_date_range_must_be_sensible(): void

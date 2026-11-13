@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Business;
 use App\Models\Report;
+use App\Models\ReportAIAnalysis;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -248,6 +249,73 @@ class ReportSubmissionTest extends TestCase
         $this->actingAs($superAdmin)
             ->get(route('dashboard.reports.submissions.download', $report))
             ->assertOk();
+    }
+
+    public function test_member_can_open_a_ready_published_report_ai_summary(): void
+    {
+        [$member, $business] = $this->memberWithBusiness();
+        $report = Report::factory()->create([
+            'business_id' => $business->id,
+            'created_by' => $member->id,
+            'status' => 'published',
+        ]);
+        $report->aiAnalysis()->create([
+            'status' => 'ready',
+            'summary_json' => [
+                'title' => 'Performance highlights',
+                'summary' => 'The report shows steady growth.',
+                'blocks' => [[
+                    'type' => 'chart',
+                    'title' => 'Quarterly growth',
+                    'source' => null,
+                    'note' => null,
+                    'chart_type' => 'bar',
+                    'labels' => ['Q1', 'Q2'],
+                    'series' => [['name' => 'Sales', 'data' => [10, 15]]],
+                ]],
+                'files_analyzed' => [],
+            ],
+            'model' => 'gemini-test',
+            'files_hash' => hash('sha256', 'report'),
+            'generated_at' => now(),
+        ]);
+
+        $this->actingAs($member)
+            ->getJson(route('dashboard.data'))
+            ->assertOk()
+            ->assertJsonPath('report_submissions.0.ai_summary_url', route('dashboard.reports.submissions.summary', $report));
+
+        $this->withoutVite()
+            ->get(route('dashboard.reports.submissions.summary', $report))
+            ->assertOk()
+            ->assertSee('AI report summary')
+            ->assertSee('The report shows steady growth.')
+            ->assertSee('data-chart=', false);
+    }
+
+    public function test_ai_summary_is_unavailable_for_unpublished_or_unauthorized_reports(): void
+    {
+        [$member, $business] = $this->memberWithBusiness();
+        $report = Report::factory()->create([
+            'business_id' => $business->id,
+            'created_by' => $member->id,
+            'status' => 'pending_review',
+        ]);
+        $report->aiAnalysis()->create([
+            'status' => 'ready',
+            'summary_json' => ['summary' => 'Not yet published.'],
+        ]);
+
+        $this->actingAs($member)
+            ->get(route('dashboard.reports.submissions.summary', $report))
+            ->assertNotFound();
+
+        $otherMember = User::factory()->create();
+        $report->update(['status' => 'published']);
+
+        $this->actingAs($otherMember)
+            ->get(route('dashboard.reports.submissions.summary', $report))
+            ->assertNotFound();
     }
 
     private function attachBusinessUser(Business $business, User $user, string $role): void

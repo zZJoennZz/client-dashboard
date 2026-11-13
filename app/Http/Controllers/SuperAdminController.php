@@ -352,7 +352,6 @@ class SuperAdminController extends Controller
                 'activity' => [
                     'reports' => Report::query()->where('business_id', $business->id)->count(),
                     'events' => Event::query()->where('business_id', $business->id)->count(),
-                    'marketing_activities' => MarketingActivity::query()->where('business_id', $business->id)->count(),
                     'orders' => Order::query()->where('business_id', $business->id)->count(),
                 ],
             ],
@@ -619,24 +618,37 @@ class SuperAdminController extends Controller
                 break;
 
             case 'reports':
-                $query = Report::query()->with(['business', 'creator'])->latest('created_at');
-                $mapper = fn (Report $report): array => [
-                    'id' => $report->id,
-                    'business_id' => $report->business_id,
-                    'title' => $report->title,
-                    'description' => $report->description,
-                    'business_name' => $report->business?->company_name ?? 'Deleted business',
-                    'reporting_period' => $report->reporting_period,
-                    'reporting_period_start' => $report->reporting_period_start?->toDateString(),
-                    'reporting_period_end' => $report->reporting_period_end?->toDateString(),
-                    'status' => $report->status,
-                    'visibility' => $report->visibility,
-                    'file_name' => $report->file_name,
-                    'creator_name' => $report->creator?->email ?? 'Unknown member',
-                    'submitted_at' => $report->submitted_at?->toDateTimeString(),
-                    'review_feedback' => $report->review_feedback,
-                    'published_at' => $report->published_at?->toDateString(),
-                ];
+                $query = Report::query()
+                    ->with(['business', 'creator', 'aiAnalysis:id,report_id,status,summary_json,updated_at'])
+                    ->latest('created_at');
+                $mapper = function (Report $report): array {
+                    $aiStatus = $report->aiAnalysis?->status ?? 'missing';
+                    if ($aiStatus === 'ready' && ! filled(data_get($report->aiAnalysis?->summary_json, 'summary'))) {
+                        $aiStatus = 'failed';
+                    }
+                    if ($aiStatus === 'processing' && $report->aiAnalysis?->updated_at?->lt(now()->subMinutes(5))) {
+                        $aiStatus = 'failed';
+                    }
+
+                    return [
+                        'id' => $report->id,
+                        'business_id' => $report->business_id,
+                        'title' => $report->title,
+                        'description' => $report->description,
+                        'business_name' => $report->business?->company_name ?? 'Deleted business',
+                        'reporting_period' => $report->reporting_period,
+                        'reporting_period_start' => $report->reporting_period_start?->toDateString(),
+                        'reporting_period_end' => $report->reporting_period_end?->toDateString(),
+                        'status' => $report->status,
+                        'visibility' => $report->visibility,
+                        'file_name' => $report->file_name,
+                        'creator_name' => $report->creator?->email ?? 'Unknown member',
+                        'submitted_at' => $report->submitted_at?->toDateTimeString(),
+                        'review_feedback' => $report->review_feedback,
+                        'published_at' => $report->published_at?->toDateString(),
+                        'ai_status' => $aiStatus,
+                    ];
+                };
                 break;
 
             case 'events':
@@ -667,25 +679,19 @@ class SuperAdminController extends Controller
                 break;
 
             case 'marketing':
-                $query = MarketingActivity::query()->with(['business', 'responsibleAdmin.profile'])->latest('scheduled_at');
+                $query = MarketingActivity::query()->latest('scheduled_at');
                 $mapper = fn (MarketingActivity $activity): array => [
                     'id' => $activity->id,
-                    'business_id' => $activity->business_id,
-                    'scope' => $activity->scope,
                     'title' => $activity->title,
-                    'business_name' => $activity->business?->company_name ?? 'Deleted business',
                     'status' => $activity->status,
                     'promotion_type' => $activity->promotion_type,
-                    'platform' => $activity->platform,
-                    'responsible_admin_id' => $activity->responsible_admin_id,
+                    'platforms' => $activity->platforms ?? [],
                     'scheduled_at' => $activity->scheduled_at?->toDateTimeString(),
                     'completed_at' => $activity->completed_at?->toDateTimeString(),
-                    'assigned_staff' => $activity->responsibleAdmin?->profile?->full_name,
                     'description' => $activity->description,
                     'member_description' => $activity->member_description,
                     'caption' => $activity->caption,
                     'notes' => $activity->notes,
-                    'published_url' => $activity->published_url,
                 ];
                 break;
 
@@ -780,7 +786,9 @@ class SuperAdminController extends Controller
             'search' => ['nullable', 'string', 'max:150'],
             'status' => ['nullable', 'string', 'max:60'],
             'payment_status' => ['nullable', 'string', 'max:60'],
-            'business_id' => ['nullable', 'integer', 'exists:clients,id'],
+            'business_id' => $section === 'marketing'
+                ? ['prohibited']
+                : ['nullable', 'integer', 'exists:clients,id'],
             'from' => ['nullable', 'date'],
             'to' => ['nullable', 'date', 'after_or_equal:from'],
             'page' => ['nullable', 'integer', 'min:1'],
@@ -795,7 +803,7 @@ class SuperAdminController extends Controller
         if (! empty($filters['payment_status']) && $section === 'orders') {
             $query->where('payment_status', $filters['payment_status']);
         }
-        if (! empty($filters['business_id'])) {
+        if (! empty($filters['business_id']) && $section !== 'marketing') {
             match ($section) {
                 'billing' => $query->whereHas('order', fn (Builder $orders) => $orders->where('business_id', $filters['business_id'])),
                 'audit', 'services' => null,
@@ -848,15 +856,18 @@ class SuperAdminController extends Controller
             'status_options' => $section === 'memberships'
                 ? Membership::query()->distinct()->orderBy('status')->pluck('status')->values()
                 : [],
-            'business_options' => Business::query()
-                ->whereNull('deleted_at')
-                ->orderBy('company_name')
-                ->get(['id', 'company_name'])
-                ->map(fn (Business $business): array => [
-                    'id' => $business->id,
-                    'name' => $business->company_name,
-                ])
-                ->values(),
+            'business_options' => $section === 'marketing'
+                ? []
+                : Business::query()
+                    ->whereNull('deleted_at')
+                    ->orderBy('company_name')
+                    ->get(['id', 'company_name'])
+                    ->map(fn (Business $business): array => [
+                        'id' => $business->id,
+                        'name' => $business->company_name,
+                    ])
+                    ->values(),
+            'marketing_options' => $section === 'marketing' ? config('marketing') : null,
         ]);
     }
 

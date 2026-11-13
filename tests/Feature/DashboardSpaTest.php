@@ -44,7 +44,7 @@ class DashboardSpaTest extends TestCase
         $this->get('/dashboard/not-a-dashboard-page')->assertOk()->assertViewIs('dashboard.index');
     }
 
-    public function test_data_endpoint_only_returns_current_users_associated_business_content(): void
+    public function test_dashboard_data_scopes_business_content_and_shares_marketing_activities(): void
     {
         $user = User::factory()->create();
         $business = Business::factory()->create([
@@ -126,13 +126,11 @@ class DashboardSpaTest extends TestCase
         ]);
 
         MarketingActivity::factory()->create([
-            'business_id' => $business->id,
             'title' => 'Scheduled member activity',
             'status' => 'scheduled',
             'notes' => 'Internal notes are not exposed',
         ]);
         MarketingActivity::factory()->create([
-            'business_id' => $otherBusiness->id,
             'title' => 'Other business activity',
             'status' => 'scheduled',
         ]);
@@ -156,7 +154,7 @@ class DashboardSpaTest extends TestCase
             ])
             ->assertJsonMissing(['title' => 'Other business resource'])
             ->assertJsonMissing(['title' => 'Private resource'])
-            ->assertJsonMissing(['title' => 'Other business activity'])
+            ->assertJsonFragment(['title' => 'Other business activity'])
             ->assertJsonMissing(['notes' => 'Internal notes are not exposed']);
 
         $this->assertStringNotContainsString('file_path', $response->getContent());
@@ -164,6 +162,7 @@ class DashboardSpaTest extends TestCase
 
     public function test_dashboard_data_handles_an_account_without_an_associated_business(): void
     {
+        MarketingActivity::factory()->create(['title' => 'Community-wide promotion']);
         Event::factory()->create([
             'status' => 'published',
             'is_published' => true,
@@ -176,7 +175,7 @@ class DashboardSpaTest extends TestCase
             ->assertJsonPath('membership', null)
             ->assertJsonPath('reports', [])
             ->assertJsonPath('events', [])
-            ->assertJsonPath('marketing', [])
+            ->assertJsonPath('marketing_activities.0.title', 'Community-wide promotion')
             ->assertJsonPath('activity', [])
             ->assertJsonPath('participation', [])
             ->assertJsonPath('attendance_history', [])
@@ -333,7 +332,6 @@ class DashboardSpaTest extends TestCase
             'visibility' => 'private',
         ]);
         MarketingActivity::factory()->create([
-            'business_id' => $businesses[1]->id,
             'title' => 'Admin-visible draft activity',
             'status' => 'draft',
         ]);
@@ -503,7 +501,7 @@ class DashboardSpaTest extends TestCase
         Report::factory()->create(['business_id' => $business->id]);
         $event = Event::factory()->create(['business_id' => $business->id]);
         EventRegistration::factory()->create(['event_id' => $event->id, 'user_id' => $user->id]);
-        MarketingActivity::factory()->create(['business_id' => $business->id]);
+        MarketingActivity::factory()->create();
         $order = Order::factory()->create(['business_id' => $business->id, 'user_id' => $user->id]);
         Service::factory()->create();
         OrderPayment::factory()->create(['order_id' => $order->id, 'recorded_by' => $admin->id]);
@@ -513,11 +511,15 @@ class DashboardSpaTest extends TestCase
         $this->actingAs($admin);
 
         foreach (['memberships', 'content', 'reports', 'events', 'marketing', 'orders', 'services', 'billing', 'analytics', 'audit'] as $section) {
-            $this->getJson(route('super-admin.workspace', ['section' => $section]))
+            $response = $this->getJson(route('super-admin.workspace', ['section' => $section]))
                 ->assertOk()
-                ->assertJsonPath('meta.total', 1)
-                ->assertJsonPath('business_options.0.id', $business->id)
-                ->assertJsonPath('business_options.0.name', $business->company_name);
+                ->assertJsonPath('meta.total', 1);
+            if ($section === 'marketing') {
+                $response->assertJsonPath('business_options', []);
+            } else {
+                $response->assertJsonPath('business_options.0.id', $business->id)
+                    ->assertJsonPath('business_options.0.name', $business->company_name);
+            }
         }
 
         $response = $this->getJson(route('super-admin.workspace', ['section' => 'reports']))->assertOk();

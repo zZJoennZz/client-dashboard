@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use App\Services\Ai\GeminiReportAnalyzer;
 
 class SuperAdminContentController extends Controller
 {
@@ -160,7 +161,7 @@ class SuperAdminContentController extends Controller
         return Storage::disk('local')->download($report->file_path, $report->file_name ?? 'report');
     }
 
-    public function reviewReport(Request $request, Report $report): JsonResponse
+    public function reviewReport(Request $request, Report $report, GeminiReportAnalyzer $analyzer): JsonResponse
     {
         $data = $request->validate([
             'decision' => ['required', 'in:approve,reject'],
@@ -168,12 +169,35 @@ class SuperAdminContentController extends Controller
             'reporting_period' => ['sometimes', 'nullable', 'string', 'max:100'],
             'review_feedback' => ['nullable', 'string', 'max:10000'],
         ]);
-
+    
         abort_unless(in_array($report->status, ['pending_review', 'rejected'], true), 422);
-
-        DB::transaction(function () use ($request, $report, $data): void {
+    
+        $approved = $data['decision'] === 'approve';
+    
+        // 1. Slow external call happens BEFORE and OUTSIDE the transaction.
+        $analysis = null;
+        $analysisError = null;
+    
+        if ($approved) {
+            set_time_limit(180);
+            $existing = $report->aiAnalysis; // hasOne(ReportAiAnalysis::class)
+            try {
+                // returns null when files are unchanged since the last successful analysis
+                $analysis = $analyzer->analyze(
+                    $report,
+                    $existing?->status === 'ready' ? $existing->files_hash : null
+                );
+            } catch (\Throwable $e) {
+                report($e);
+                $analysisError = \Illuminate\Support\Str::limit($e->getMessage(), 500);
+            }
+        }
+        // 2. Fast DB work only.
+        DB::transaction(function () use ($request, $report, $data, $approved, $analysis, $analysisError): void {
+            $report = Report::lockForUpdate()->findOrFail($report->id);
+            abort_unless(in_array($report->status, ['pending_review', 'rejected'], true), 422);
+    
             $old = $this->contentAudit($report);
-            $approved = $data['decision'] === 'approve';
             $report->status = $approved ? 'published' : 'rejected';
             $report->visibility = $approved ? ($data['visibility'] ?? 'member') : 'private';
             $report->reporting_period = $data['reporting_period'] ?? $report->reporting_period;
@@ -182,11 +206,131 @@ class SuperAdminContentController extends Controller
             $report->reviewed_at = now();
             $report->published_at = $approved ? now() : null;
             $report->save();
-            AuditLog::record($request->user(), $approved ? 'report.approved' : 'report.rejected', $report, $old, $this->contentAudit($report));
+    
+            if ($analysis) {
+                $report->aiAnalysis()->updateOrCreate([], [
+                    'status'       => 'ready',
+                    'summary_json' => $analysis['json'],
+                    'summary_html' => $analysis['html'],
+                    'model'        => $analysis['model'],
+                    'files_hash'   => $analysis['files_hash'],
+                    'error'        => null,
+                    'generated_at' => now(),
+                ]);
+            } elseif ($analysisError && $report->aiAnalysis?->status !== 'ready') {
+                // approval still succeeds; keep any earlier good analysis untouched
+                $report->aiAnalysis()->updateOrCreate([], ['status' => 'failed', 'error' => $analysisError]);
+            }
+    
+            AuditLog::record(
+                $request->user(),
+                $approved ? 'report.approved' : 'report.rejected',
+                $report, $old, $this->contentAudit($report)
+            );
+        });
+    
+        return response()->json([
+            'id' => $report->id,
+            'status' => $report->fresh()->status,
+            'ai_status' => $approved ? ($analysisError ? 'failed' : 'ready') : null,
+        ]);
+    }
+
+    public function regenerateReportAiSummary(Report $report, GeminiReportAnalyzer $analyzer): JsonResponse
+    {
+        abort_unless($report->status === 'published', 422, 'Only published reports can have an AI summary.');
+
+        $analysisRecord = DB::transaction(function () use ($report) {
+            $lockedReport = Report::query()->lockForUpdate()->findOrFail($report->id);
+            abort_unless($lockedReport->status === 'published', 422, 'Only published reports can have an AI summary.');
+
+            $existing = $lockedReport->aiAnalysis()->lockForUpdate()->first();
+            if ($existing?->status === 'ready' && filled(data_get($existing->summary_json, 'summary'))) {
+                abort(409, 'This report already has a ready AI summary.');
+            }
+            if ($existing?->status === 'processing' && $existing->updated_at?->gt(now()->subMinutes(5))) {
+                abort(409, 'AI summary generation is already in progress.');
+            }
+
+            return $lockedReport->aiAnalysis()->updateOrCreate([], [
+                'status' => 'processing',
+                'summary_json' => null,
+                'summary_html' => null,
+                'model' => null,
+                'files_hash' => null,
+                'error' => null,
+                'generated_at' => null,
+            ]);
         });
 
-        return response()->json(['id' => $report->id, 'status' => $report->status]);
+        set_time_limit(180);
+
+        try {
+            $analysis = $analyzer->analyze($report);
+            if ($analysis === null) {
+                throw new \RuntimeException('The AI analyzer did not return a new summary.');
+            }
+        } catch (\Throwable $exception) {
+            report($exception);
+            $analysisRecord->update([
+                'status' => 'failed',
+                'summary_json' => null,
+                'summary_html' => null,
+                'model' => null,
+                'files_hash' => null,
+                'error' => Str::limit($exception->getMessage(), 500),
+                'generated_at' => null,
+            ]);
+
+            return response()->json([
+                'message' => 'AI summary generation failed. Please review the AI configuration or try again.',
+                'ai_status' => 'failed',
+            ], 422);
+        }
+
+        $analysisRecord->update([
+            'status' => 'ready',
+            'summary_json' => $analysis['json'],
+            'summary_html' => $analysis['html'],
+            'model' => $analysis['model'],
+            'files_hash' => $analysis['files_hash'],
+            'error' => null,
+            'generated_at' => now(),
+        ]);
+
+        return response()->json([
+            'id' => $report->id,
+            'ai_status' => 'ready',
+        ]);
     }
+
+    // public function reviewReport(Request $request, Report $report): JsonResponse
+    // {
+    //     $data = $request->validate([
+    //         'decision' => ['required', 'in:approve,reject'],
+    //         'visibility' => ['sometimes', 'required', 'in:private,member,public'],
+    //         'reporting_period' => ['sometimes', 'nullable', 'string', 'max:100'],
+    //         'review_feedback' => ['nullable', 'string', 'max:10000'],
+    //     ]);
+
+    //     abort_unless(in_array($report->status, ['pending_review', 'rejected'], true), 422);
+
+    //     DB::transaction(function () use ($request, $report, $data): void {
+    //         $old = $this->contentAudit($report);
+    //         $approved = $data['decision'] === 'approve';
+    //         $report->status = $approved ? 'published' : 'rejected';
+    //         $report->visibility = $approved ? ($data['visibility'] ?? 'member') : 'private';
+    //         $report->reporting_period = $data['reporting_period'] ?? $report->reporting_period;
+    //         $report->review_feedback = $data['review_feedback'] ?? null;
+    //         $report->reviewed_by = $request->user()->id;
+    //         $report->reviewed_at = now();
+    //         $report->published_at = $approved ? now() : null;
+    //         $report->save();
+    //         AuditLog::record($request->user(), $approved ? 'report.approved' : 'report.rejected', $report, $old, $this->contentAudit($report));
+    //     });
+
+    //     return response()->json(['id' => $report->id, 'status' => $report->status]);
+    // }
 
     private function resourceData(Request $request, bool $creating): array
     {

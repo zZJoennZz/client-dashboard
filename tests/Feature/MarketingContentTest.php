@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\AuditLog;
 use App\Models\Business;
 use App\Models\MarketingActivity;
 use App\Models\Resource;
@@ -10,42 +9,44 @@ use App\Models\ResourceAcknowledgment;
 use App\Models\ResourceVersion;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class MarketingContentTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_dashboard_exposes_only_associated_business_highlights_and_shared_program_activities(): void
+    public function test_dashboard_exposes_the_shared_marketing_schedule_to_every_member(): void
     {
         $member = User::factory()->create();
         $business = Business::factory()->create();
-        $otherBusiness = Business::factory()->create();
         $this->attachMember($business, $member);
 
         MarketingActivity::factory()->create([
-            'business_id' => $business->id,
-            'scope' => 'business',
-            'title' => 'My scheduled highlight',
+            'title' => 'Shared social post',
+            'promotion_type' => 'Social Media Post',
+            'platforms' => [['platform' => 'Facebook', 'url' => 'https://example.test/post']],
             'scheduled_at' => now()->addDays(8),
             'status' => 'scheduled',
-        ]);
-        MarketingActivity::factory()->create([
-            'business_id' => $otherBusiness->id,
-            'scope' => 'business',
-            'title' => 'Private highlight',
-        ]);
-        MarketingActivity::factory()->create([
-            'business_id' => null,
-            'scope' => 'program',
-            'title' => 'Shared holiday campaign',
         ]);
 
         $this->actingAs($member)->getJson(route('dashboard.data'))
             ->assertOk()
-            ->assertJsonPath('highlights.0.title', 'My scheduled highlight')
-            ->assertJsonPath('program_activities.0.title', 'Shared holiday campaign')
-            ->assertJsonMissing(['title' => 'Private highlight']);
+            ->assertJsonPath('marketing_activities.0.title', 'Shared social post')
+            ->assertJsonPath('marketing_activities.0.platforms.0.platform', 'Facebook')
+            ->assertJsonPath('marketing_activities.0.platforms.0.url', 'https://example.test/post')
+            ->assertJsonPath('marketing_options.promotion_types.0', 'Social Media Post')
+            ->assertJsonMissingPath('marketing_activities.0.business_id')
+            ->assertJsonMissingPath('marketing_activities.0.scope')
+            ->assertJsonMissingPath('highlights');
+    }
+
+    public function test_marketing_activity_schema_has_no_business_scope_or_provider_assignment(): void
+    {
+        $this->assertFalse(Schema::hasColumn('marketing_activities', 'business_id'));
+        $this->assertFalse(Schema::hasColumn('marketing_activities', 'scope'));
+        $this->assertFalse(Schema::hasColumn('marketing_activities', 'responsible_admin_id'));
+        $this->assertTrue(Schema::hasColumn('marketing_activities', 'platforms'));
     }
 
     public function test_member_can_acknowledge_current_guideline_version_for_their_business_only(): void
@@ -79,24 +80,41 @@ class MarketingContentTest extends TestCase
         $this->assertInstanceOf(ResourceAcknowledgment::class, ResourceAcknowledgment::query()->first());
     }
 
-    public function test_super_admin_can_create_duplicate_cancel_and_archive_program_activities(): void
+    public function test_super_admin_can_create_duplicate_cancel_and_archive_global_activities(): void
     {
         $admin = User::factory()->superAdmin()->create();
         $response = $this->actingAs($admin)->postJson(route('super-admin.marketing.store'), [
-            'scope' => 'program',
-            'business_id' => null,
             'title' => 'Monthly member newsletter',
-            'promotion_type' => 'Newsletter',
+            'promotion_type' => 'Email Newsletter',
+            'platforms' => [
+                ['platform' => 'Facebook', 'url' => 'https://example.test/newsletter'],
+                ['platform' => 'Instagram', 'url' => null],
+            ],
             'scheduled_at' => now()->addMonth()->toDateTimeString(),
             'status' => 'scheduled',
         ])->assertCreated();
         $activity = MarketingActivity::query()->findOrFail($response->json('id'));
+        $this->assertSame([
+            ['platform' => 'Facebook', 'url' => 'https://example.test/newsletter'],
+            ['platform' => 'Instagram', 'url' => null],
+        ], $activity->platforms);
+
+        $this->getJson(route('super-admin.workspace', 'marketing'))
+            ->assertOk()
+            ->assertJsonPath('data.0.platforms.0.url', 'https://example.test/newsletter')
+            ->assertJsonPath('marketing_options.promotion_types.0', 'Social Media Post')
+            ->assertJsonPath('business_options', [])
+            ->assertJsonMissingPath('data.0.business_name')
+            ->assertJsonMissingPath('data.0.scope');
+        $this->postJson(route('super-admin.exports', 'marketing'), ['business_id' => 1])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['business_id']);
 
         $duplicate = $this->postJson(route('super-admin.marketing.duplicate', $activity))
             ->assertCreated()->json();
         $copy = MarketingActivity::query()->findOrFail($duplicate['id']);
-        $this->assertSame('program', $copy->scope);
         $this->assertSame('planned', $copy->status);
+        $this->assertSame($activity->platforms, $copy->platforms);
 
         $this->patchJson(route('super-admin.marketing.status', $copy), ['status' => 'cancelled'])
             ->assertOk()->assertJsonPath('status', 'cancelled');
@@ -105,6 +123,19 @@ class MarketingContentTest extends TestCase
         $this->assertDatabaseHas('audit_logs', ['action' => 'marketing.duplicated']);
         $this->assertDatabaseHas('audit_logs', ['action' => 'marketing.status_updated']);
         $this->assertDatabaseHas('audit_logs', ['action' => 'marketing.archived']);
+    }
+
+    public function test_marketing_activity_validates_prefilled_promotion_and_platform_options(): void
+    {
+        $admin = User::factory()->superAdmin()->create();
+
+        $this->actingAs($admin)->postJson(route('super-admin.marketing.store'), [
+            'title' => 'Invalid promotion',
+            'promotion_type' => 'Unlisted promotion',
+            'platforms' => [['platform' => 'Unlisted platform', 'url' => '']],
+            'status' => 'planned',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['promotion_type', 'platforms.0.platform']);
     }
 
     public function test_resource_edits_preserve_version_history_and_audit_changes(): void

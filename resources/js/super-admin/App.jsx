@@ -18,7 +18,7 @@ const navigation = [
     ['billing', 'Billing and payments'],
     ['analytics', 'Reporting and analytics'],
     ['engagement', 'Member engagement'],
-    ['communications', 'Member communications'],
+    // ['communications', 'Member communications'],
     ['audit', 'Audit logs'],
     ['settings', 'Platform settings'],
 ];
@@ -451,7 +451,7 @@ function BusinessDetail({ business, onClose, onEdit }) {
                     <h3 className="font-semibold">Membership history</h3>
                     {business.memberships.length ? <ul className="mt-3 divide-y divide-[var(--rr-border)]">{business.memberships.map((membership) => <li key={membership.id} className="py-3 first:pt-0"><p className="text-sm font-medium">{membership.plan || 'Membership plan'} · <span className="capitalize">{membership.status.replaceAll('_', ' ')}</span></p><p className="mt-1 text-xs text-[var(--rr-neutral-mid)]">Payment status: {membership.payment_is_simulated ? 'simulated placeholder (no transaction)' : membership.payment_status} · Start: {membership.start_date || 'not recorded'} · Renewal: {membership.end_date || 'not set'}</p></li>)}</ul> : <p className="mt-2 text-sm text-[var(--rr-neutral-mid)]">No membership records.</p>}
                     <h3 className="mt-5 font-semibold">Recorded activity counts</h3>
-                    <p className="mt-2 text-sm text-[var(--rr-neutral-mid)]">Reports {business.activity.reports} · Events {business.activity.events} · Promotions {business.activity.marketing_activities} · Orders {business.activity.orders}</p>
+                    <p className="mt-2 text-sm text-[var(--rr-neutral-mid)]">Reports {business.activity.reports} · Events {business.activity.events} · Orders {business.activity.orders}</p>
                 </div>
             </div>
         </Panel>
@@ -846,7 +846,7 @@ const listColumns = {
     content: [['title', 'Resource'], ['business_name', 'Business'], ['resource_type', 'Type'], ['status', 'Status'], ['visibility', 'Visibility'], ['file_name', 'File'], ['published_at', 'Published']],
     reports: [['title', 'Report'], ['business_name', 'Business'], ['creator_name', 'Submitted by'], ['reporting_period', 'Reporting period'], ['status', 'Status'], ['visibility', 'Visibility'], ['file_name', 'File'], ['submitted_at', 'Submitted'], ['review_feedback', 'Feedback'], ['published_at', 'Published']],
     events: [['title', 'Event'], ['business_name', 'Business'], ['status', 'Status'], ['is_published', 'Published'], ['starts_at', 'Starts'], ['active_registrations', 'Registrations'], ['capacity', 'Capacity']],
-    marketing: [['title', 'Activity'], ['business_name', 'Business'], ['status', 'Status'], ['scheduled_at', 'Scheduled'], ['assigned_staff', 'Assigned staff'], ['description', 'Description']],
+    marketing: [['title', 'Promotion'], ['promotion_type', 'Type'], ['platforms', 'Platforms'], ['status', 'Status'], ['scheduled_at', 'Scheduled'], ['description', 'Description']],
     orders: [['order_number', 'Order'], ['business_name', 'Business'], ['member_name', 'Member'], ['status', 'Order status'], ['payment_status', 'Payment status'], ['total', 'Total'], ['submitted_at', 'Submitted']],
     services: [['name', 'Service'], ['price', 'Price'], ['status', 'Status'], ['featured', 'Featured'], ['deleted', 'Archived']],
     billing: [['order_number', 'Order'], ['business_name', 'Business'], ['amount', 'Amount'], ['currency', 'Currency'], ['payment_date', 'Payment date'], ['method', 'Method'], ['status', 'Status'], ['recorded_by', 'Recorded by']],
@@ -868,7 +868,7 @@ function WorkspaceList({ section, url, requestJson, title }) {
         content: 'Published and unpublished general resources. Stored file paths are never exposed by this endpoint.',
         reports: 'Business reports and their visibility state. This view does not expose document paths or provide downloads.',
         events: 'Events across businesses with publication state and active registration counts.',
-        marketing: 'Manually scheduled and completed marketing activity. No automatic social posting is performed.',
+        marketing: 'Platform-wide promotions and their scheduled or completed status.',
         orders: 'Existing order records and historical item prices. Fulfillment updates are not implemented here.',
         services: 'Current and archived service catalog entries. Editing the catalog is not implemented here.',
         billing: 'Recorded order payments only. Membership payment transactions are not available in the current schema.',

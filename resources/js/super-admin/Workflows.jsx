@@ -33,12 +33,13 @@ const schemas = {
         ['is_published', 'Published', 'checkbox'],
     ],
     marketing: [
-        ['title', 'Activity title', 'text', true], ['scope', 'Activity scope', 'select', true, ['business', 'program']], ['business_id', 'Business (optional for program activities)', 'business'],
-        ['promotion_type', 'Promotion type', 'text', true], ['platform', 'Platform', 'text'],
+        ['title', 'Promotion title', 'text', true],
+        ['promotion_type', 'Promotion type', 'select', true],
+        ['platforms', 'Platforms and post URLs', 'platforms'],
         ['scheduled_at', 'Scheduled at', 'datetime-local'], ['status', 'Status', 'select', true, ['planned', 'scheduled', 'completed', 'cancelled']],
-        ['responsible_admin_id', 'Assigned provider staff ID', 'number'], ['caption', 'Content / caption', 'textarea'],
+        ['caption', 'Content / caption', 'textarea'],
         ['description', 'Internal notes', 'textarea'], ['member_description', 'Member-facing activity notes', 'textarea'],
-        ['published_url', 'Published URL (manual posting only)', 'url'], ['completed_at', 'Completed at', 'datetime-local'],
+        ['completed_at', 'Completed at', 'datetime-local'],
     ],
     services: [
         ['name', 'Service name', 'text', true], ['description', 'Description', 'textarea'],
@@ -91,7 +92,7 @@ export default function AdminWorkflows({ section, workspaceUrl, urls, exportUrl 
     const orders = section === 'orders';
     const services = section === 'services';
     const communications = section === 'communications';
-    const showBusinessFilter = ['memberships', 'content', 'reports', 'events', 'marketing', 'orders'].includes(section);
+    const showBusinessFilter = ['memberships', 'content', 'reports', 'events', 'orders'].includes(section);
     const [filters, setFilters] = useState({ page: 1, search: '', status: '', business_id: '' });
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -102,6 +103,7 @@ export default function AdminWorkflows({ section, workspaceUrl, urls, exportUrl 
     const [preview, setPreview] = useState(null);
     const [registrations, setRegistrations] = useState(null);
     const [membershipDetails, setMembershipDetails] = useState(null);
+    const [pendingAiSummaryId, setPendingAiSummaryId] = useState(null);
     const [calendarMode, setCalendarMode] = useState(false);
     const [query, setQuery] = useState('');
 
@@ -124,10 +126,19 @@ export default function AdminWorkflows({ section, workspaceUrl, urls, exportUrl 
 
     useEffect(() => { refresh(); }, [listUrl, params.toString()]);
 
-    const schema = schemas[section] ?? [];
+    const schema = (schemas[section] ?? []).map((field) => {
+        const [key, label, type, required, options] = field;
+        if (section === 'marketing' && key === 'promotion_type') {
+            return [key, label, type, required, data?.marketing_options?.promotion_types ?? []];
+        }
+        if (section === 'marketing' && key === 'platforms') {
+            return [key, label, type, required, data?.marketing_options?.platforms ?? []];
+        }
+        return field;
+    });
     const title = {
         memberships: 'Membership adjustments', content: 'Member resources', reports: 'Business reports',
-        events: 'Event management', marketing: 'Marketing activities', orders: 'Order fulfillment',
+        events: 'Event management', marketing: 'Marketing and promotions', orders: 'Order fulfillment',
         services: 'Premium service catalog', communications: 'Member announcements',
     }[section] ?? section;
 
@@ -176,6 +187,7 @@ export default function AdminWorkflows({ section, workspaceUrl, urls, exportUrl 
                 if (type === 'business') payload[key] = payload[key] === '' ? null : Number(payload[key]);
                 if (type === 'datetime-local' && payload[key]) payload[key] = new Date(payload[key]).toISOString();
             }
+            if (marketing) payload.platforms = record.platforms ?? [];
         }
         let url;
         let method;
@@ -221,6 +233,12 @@ export default function AdminWorkflows({ section, workspaceUrl, urls, exportUrl 
         } catch (exception) {
             setError(exception.message);
         }
+    }
+
+    async function regenerateAiSummary(row) {
+        setPendingAiSummaryId(row.id);
+        await action(`${urls.reports}/${row.id}/ai-summary/regenerate`, 'POST');
+        setPendingAiSummaryId(null);
     }
 
     async function exportCsv(type, extra = {}) {
@@ -349,8 +367,8 @@ export default function AdminWorkflows({ section, workspaceUrl, urls, exportUrl 
                 {marketing && calendarMode ? <MarketingCalendar rows={dataRows(data)} /> : dataRows(data).length === 0 ? <p className="rounded-lg bg-[var(--rr-background)] p-6 text-sm text-[var(--rr-neutral-mid)]">No records match these filters.</p> : <div className="space-y-3">
                     {dataRows(data).map((row) => <article key={row.id} className="rounded-lg border border-[var(--rr-border)] p-4">
                         <div className="flex flex-wrap items-start justify-between gap-3">
-                            <div><h3 className="font-semibold">{row.title || row.name || row.subject || row.order_number || row.business_name || `Record #${row.id}`}</h3><p className="mt-1 text-xs text-[var(--rr-neutral-mid)]">{row.scope === 'program' ? 'Program-wide' : row.business_name || row.plan || row.service_name || ''} {row.status ? ` · ${row.status}` : ''}{row.deleted ? ' · Archived' : ''}</p><p className="mt-1 text-xs text-[var(--rr-neutral-mid)]">{row.file_name || row.scheduled_at || row.starts_at || row.end_date || ''}</p>{section === 'content' && <p className="mt-2 text-xs text-[var(--rr-neutral-mid)]">Version {row.version} · {row.view_count} views · {row.acknowledgments?.length ?? 0} business acknowledgments</p>}{communications && <p className="mt-2 text-xs text-[var(--rr-neutral-mid)]">Recipients: {row.recipient_count} · Delivered: {row.delivered_count} · Failed: {row.failed_count}{row.failed_recipients?.length ? ` (${row.failed_recipients.join(', ')})` : ''}</p>}</div>
-                            <Actions section={section} row={row} urls={urls} action={action} startEdit={startEdit} showMembershipDetails={showMembershipDetails} startAnnouncementEdit={(item) => {
+                            <div><h3 className="font-semibold">{row.title || row.name || row.subject || row.order_number || row.business_name || `Record #${row.id}`}</h3><p className="mt-1 text-xs text-[var(--rr-neutral-mid)]">{marketing ? row.promotion_type : row.business_name || row.plan || row.service_name || ''} {row.status ? ` · ${row.status}` : ''}{row.deleted ? ' · Archived' : ''}</p><p className="mt-1 text-xs text-[var(--rr-neutral-mid)]">{row.file_name || row.scheduled_at || row.starts_at || row.end_date || ''}</p>{marketing && row.platforms?.length > 0 && <ul className="mt-2 space-y-1 text-xs text-[var(--rr-neutral-mid)]">{row.platforms.map((platform) => <li key={platform.platform}>{platform.platform}{platform.url && <> · <a className="font-semibold text-[var(--rr-primary)] underline" href={platform.url} target="_blank" rel="noreferrer">View post</a></>}</li>)}</ul>}{section === 'content' && <p className="mt-2 text-xs text-[var(--rr-neutral-mid)]">Version {row.version} · {row.view_count} views · {row.acknowledgments?.length ?? 0} business acknowledgments</p>}{communications && <p className="mt-2 text-xs text-[var(--rr-neutral-mid)]">Recipients: {row.recipient_count} · Delivered: {row.delivered_count} · Failed: {row.failed_count}{row.failed_recipients?.length ? ` (${row.failed_recipients.join(', ')})` : ''}</p>}</div>
+                            <Actions section={section} row={row} urls={urls} action={action} startEdit={startEdit} regenerateAiSummary={regenerateAiSummary} pendingAiSummaryId={pendingAiSummaryId} showMembershipDetails={showMembershipDetails} startAnnouncementEdit={(item) => {
                                 setEditingId(item.id);
                                 setRecord({ subject: item.subject, body: item.body, audience: item.audience ?? {} });
                                 window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -396,7 +414,33 @@ function Field({ name, label, type = 'text', required = false, options = [], bus
         />;
     }
 
-    const common = { name, required, className: `${input} mt-1`, defaultValue: value ?? (name === 'scope' ? 'business' : '') };
+    if (type === 'platforms') {
+        const selected = Array.isArray(value) ? value : [];
+        const updatePlatform = (platform, updates) => onChange(selected.map((item) => item.platform === platform ? { ...item, ...updates } : item));
+
+        return <fieldset className="sm:col-span-2">
+            <legend className="text-xs font-semibold">{label}</legend>
+            <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                {options.map((platform) => {
+                    const selection = selected.find((item) => item.platform === platform);
+                    return <label key={platform} className="flex min-h-11 items-center gap-2 rounded-lg border border-[var(--rr-border)] px-3 text-sm">
+                        <input type="checkbox" checked={Boolean(selection)} onChange={(event) => {
+                            onChange(event.target.checked
+                                ? [...selected, { platform, url: '' }]
+                                : selected.filter((item) => item.platform !== platform));
+                        }} className="min-h-5 min-w-5 accent-[var(--rr-primary)]" />
+                        {platform}
+                    </label>;
+                })}
+            </div>
+            {selected.map((item) => <label key={item.platform} className="mt-3 block text-xs font-semibold">
+                {item.platform} post URL <span className="font-normal text-[var(--rr-neutral-mid)]">(optional)</span>
+                <input type="url" value={item.url ?? ''} onChange={(event) => updatePlatform(item.platform, { url: event.target.value })} className={`${input} mt-1`} placeholder="https://…" />
+            </label>)}
+        </fieldset>;
+    }
+
+    const common = { name, required, className: `${input} mt-1`, defaultValue: value ?? '' };
     return <label className={`block text-xs font-semibold ${type === 'textarea' ? 'sm:col-span-2' : ''}`}>{label}
         {type === 'textarea' ? <textarea {...common} rows="3" /> :
             type === 'select' ? <select {...common}>{options.map((option) => <option key={option}>{option}</option>)}</select> :
@@ -405,13 +449,17 @@ function Field({ name, label, type = 'text', required = false, options = [], bus
     </label>;
 }
 
-function Actions({ section, row, urls, action, startEdit, startAnnouncementEdit, showRegistrants, showMembershipDetails, exportCsv }) {
+function Actions({ section, row, urls, action, startEdit, regenerateAiSummary, pendingAiSummaryId, startAnnouncementEdit, showRegistrants, showMembershipDetails, exportCsv }) {
     return <div className="flex flex-wrap gap-2">
         {(section === 'content' || section === 'events' || section === 'marketing' || (section === 'reports' && !['pending_review', 'rejected'].includes(row.status))) && <button className={secondary} onClick={() => startEdit(row)}>Edit</button>}
         {section === 'services' && !row.deleted && <button className={secondary} onClick={() => startEdit(row)}>Edit</button>}
         {section === 'content' && <>{row.file_name && <a className={`${secondary} inline-flex items-center`} href={`${urls.resources}/${row.id}/download`}>Download</a>}<button className={secondary} onClick={() => action(`${urls.resources}/${row.id}`, 'DELETE')}>Archive</button></>}
         {section === 'reports' && <>
             {row.file_name && <a className={`${secondary} inline-flex items-center`} href={`${urls.reports}/${row.id}/download`}>Download</a>}
+            {row.status === 'published' && row.ai_status !== 'ready' && <button className={secondary} disabled={row.ai_status === 'processing' || pendingAiSummaryId === row.id} onClick={() => regenerateAiSummary(row)}>
+                {row.ai_status === 'processing' || pendingAiSummaryId === row.id ? 'Generating AI summary…' : row.ai_status === 'failed' ? 'Regenerate AI summary' : 'Generate AI summary'}
+            </button>}
+            {row.ai_status === 'ready' && <span className="self-center text-xs font-semibold text-[var(--rr-success)]">AI summary ready</span>}
             {row.status === 'pending_review' && <>
                 <button className={secondary} onClick={() => action(`${urls.reports}/${row.id}/review`, 'PATCH', { decision: 'approve', visibility: 'member' })}>Approve and publish</button>
                 <button className={secondary} onClick={() => {
@@ -422,7 +470,7 @@ function Actions({ section, row, urls, action, startEdit, startAnnouncementEdit,
             <button className={secondary} onClick={() => action(`${urls.reports}/${row.id}`, 'DELETE')}>Archive</button>
         </>}
         {section === 'events' && <><button className={secondary} onClick={() => action(`${urls.events}/${row.id}/status`, 'PATCH', { status: row.status === 'published' ? 'draft' : 'published' })}>{row.status === 'published' ? 'Unpublish' : 'Publish'}</button><button className={secondary} onClick={() => action(`${urls.events}/${row.id}/status`, 'PATCH', { status: 'cancelled' })}>Cancel</button><button className={secondary} onClick={() => showRegistrants(row)}>Registrants</button></>}
-        {section === 'marketing' && <><button className={secondary} onClick={() => action(`${urls.marketing}/${row.id}/duplicate`, 'POST')}>Duplicate</button><button className={secondary} onClick={() => action(`${urls.marketing}/${row.id}/status`, 'PATCH', { status: 'cancelled' })}>Cancel activity</button><button className={secondary} onClick={() => action(`${urls.marketing}/${row.id}`, 'DELETE')}>Archive</button><p className="w-full text-xs text-[var(--rr-neutral-mid)]">Posting is manual; no social network publishing is connected.</p></>}
+        {section === 'marketing' && <><button className={secondary} onClick={() => action(`${urls.marketing}/${row.id}/duplicate`, 'POST')}>Duplicate</button><button className={secondary} onClick={() => action(`${urls.marketing}/${row.id}/status`, 'PATCH', { status: 'cancelled' })}>Cancel promotion</button><button className={secondary} onClick={() => action(`${urls.marketing}/${row.id}`, 'DELETE')}>Archive</button><p className="w-full text-xs text-[var(--rr-neutral-mid)]">Post publishing is manual.</p></>}
         {section === 'services' && null}
         {section === 'communications' && <>{row.status === 'draft' && <button className={secondary} onClick={() => startAnnouncementEdit(row)}>Edit draft</button>}{['draft', 'failed'].includes(row.status) && <button className={secondary} onClick={() => window.confirm('Send this announcement to eligible, opted-in members? This cannot be undone.') && action(`${urls.announcements}/${row.id}/send`, 'POST')}>{row.status === 'failed' ? 'Retry failed deliveries' : 'Approve and send'}</button>}</>}
         {section === 'memberships' && <button className={secondary} onClick={() => exportCsv('memberships', { business_id: row.business_id })}>Export memberships</button>}
@@ -472,7 +520,7 @@ function explanation(section) {
         content: 'Create, edit, publish, and archive general member resources. Files stay in private storage and download routes are authorization checked.',
         reports: 'Upload business reports and control publication. Members can only download published reports for an associated business.',
         events: 'Manage event details, publication, cancellation, capacity, RSVP, registration lists, and CSV export.',
-        marketing: 'Schedule and track manually executed promotions. This tool does not publish automatically to social media.',
+        marketing: 'Plan and track platform-wide promotions. Add optional post URLs for each selected platform.',
         orders: 'Update fulfillment status, staff assignment, and notes while preserving historical item prices.',
         services: 'Maintain the premium services catalog. Deactivation preserves historical orders.',
         communications: 'Draft announcements, preview eligible opted-in member counts, and send only when a delivery transport is configured.',

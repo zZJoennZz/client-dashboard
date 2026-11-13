@@ -6,11 +6,18 @@ use App\Http\Controllers\BusinessController;
 use App\Http\Controllers\PublicPageController;
 use App\Models\Business;
 use App\Models\BusinessCategory;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Route as RoutingRoute;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use Laravel\Fortify\Contracts\LoginViewResponse;
+use Laravel\Fortify\Contracts\RequestPasswordResetLinkViewResponse;
+use Laravel\Fortify\Contracts\ResetPasswordViewResponse;
+use Illuminate\Auth\Notifications\ResetPassword;
 use Tests\TestCase;
 
 class PublicPagesTest extends TestCase
@@ -139,6 +146,50 @@ class PublicPagesTest extends TestCase
             ->assertSee('name="_token"', false)
             ->assertSee('action="'.route('login.store').'"', false)
             ->assertSee(route('password.request'));
+    }
+
+    public function test_fortify_password_reset_views_are_bound_and_rendered(): void
+    {
+        $this->assertTrue($this->app->bound(RequestPasswordResetLinkViewResponse::class));
+        $this->assertTrue($this->app->bound(ResetPasswordViewResponse::class));
+
+        $this->get(route('password.request'))
+            ->assertOk()
+            ->assertViewIs('auth.forgot-password')
+            ->assertSee('name="_token"', false)
+            ->assertSee('action="'.route('password.email').'"', false);
+
+        $user = User::factory()->create();
+        $token = Password::createToken($user);
+
+        $this->get(route('password.reset', ['token' => $token, 'email' => $user->email]))
+            ->assertOk()
+            ->assertViewIs('auth.reset-password')
+            ->assertSee('value="'.$token.'"', false)
+            ->assertSee('value="'.$user->email.'"', false);
+    }
+
+    public function test_fortify_password_reset_link_and_reset_password_flow_work(): void
+    {
+        Notification::fake();
+        $user = User::factory()->create();
+
+        $this->post(route('password.email'), ['email' => $user->email])
+            ->assertRedirect()
+            ->assertSessionHas('status');
+        Notification::assertSentTo($user, ResetPassword::class);
+
+        $token = Password::createToken($user);
+        $newPassword = 'A-new-secure-password-2026';
+
+        $this->post(route('password.update'), [
+            'token' => $token,
+            'email' => $user->email,
+            'password' => $newPassword,
+            'password_confirmation' => $newPassword,
+        ])->assertRedirect(route('login'));
+
+        $this->assertTrue(Hash::check($newPassword, $user->fresh()->password));
     }
 
     public function test_business_profile_is_found_by_slug_and_unknown_slug_returns_404(): void

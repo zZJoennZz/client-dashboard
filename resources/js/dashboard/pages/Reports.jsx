@@ -262,6 +262,17 @@ export default function Reports({ data, onRefresh }) {
                                             >
                                                 Download report
                                             </a>
+                                            {submission.ai_summary_url && (
+                                                <a
+                                                    href={submission.ai_summary_url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    aria-label={`Open AI summary for ${submission.title} in a new tab`}
+                                                    className="mt-4 inline-flex min-h-10 items-center justify-center rounded-lg bg-[var(--rr-primary)] px-3 text-xs font-semibold text-white hover:bg-[var(--rr-primary-light)] sm:ml-2"
+                                                >
+                                                    View AI summary
+                                                </a>
+                                            )}
                                         </div>
                                     </details>
                                 ))}

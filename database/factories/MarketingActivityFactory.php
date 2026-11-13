@@ -2,9 +2,7 @@
 
 namespace Database\Factories;
 
-use App\Models\Business;
 use App\Models\MarketingActivity;
-use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -17,15 +15,14 @@ class MarketingActivityFactory extends Factory
     public function definition(): array
     {
         return [
-            'business_id' => Business::factory(),
             'title' => fake()->sentence(4),
             'description' => fake()->paragraph(),
+            'promotion_type' => fake()->randomElement(config('marketing.promotion_types')),
+            'platforms' => [],
             'scheduled_at' => now()->addDays(7),
             'completed_at' => null,
             'status' => 'scheduled',
             'notes' => null,
-            'responsible_admin_id' => User::factory(),
-            'created_by' => User::factory(),
         ];
     }
 }
