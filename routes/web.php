@@ -74,6 +74,8 @@ Route::middleware('auth')->group(function (): void {
         ->middleware('dashboard.module:reports')->name('dashboard.files.reports');
     Route::post('/dashboard/reports/submissions', [MemberReportController::class, 'store'])
         ->middleware('dashboard.module:reports,write')->name('dashboard.reports.submissions.store');
+    Route::get('/dashboard/reports/submissions/{report}/summary', [MemberReportController::class, 'summary'])
+        ->middleware('dashboard.module:reports')->name('dashboard.reports.submissions.summary');
     Route::get('/dashboard/reports/submissions/{report}/download', [MemberReportController::class, 'download'])
         ->middleware('dashboard.module:reports')->name('dashboard.reports.submissions.download');
     Route::get('/dashboard/{path?}', DashboardController::class)
@@ -113,6 +115,7 @@ Route::middleware(['auth', 'can:system-admin', 'system.module'])
         Route::get('/api/resources/{resource}/versions/{version}/download', [SuperAdminContentController::class, 'downloadResourceVersion'])->name('resources.versions.download');
         Route::post('/api/reports', [SuperAdminContentController::class, 'storeReport'])->name('reports.store');
         Route::patch('/api/reports/{report}/review', [SuperAdminContentController::class, 'reviewReport'])->name('reports.review');
+        Route::post('/api/reports/{report}/ai-summary/regenerate', [SuperAdminContentController::class, 'regenerateReportAiSummary'])->name('reports.ai-summary.regenerate');
         Route::put('/api/reports/{report}', [SuperAdminContentController::class, 'updateReport'])->name('reports.update');
         Route::delete('/api/reports/{report}', [SuperAdminContentController::class, 'archiveReport'])->name('reports.archive');
         Route::get('/api/reports/{report}/download', [SuperAdminContentController::class, 'downloadReport'])->name('reports.download');

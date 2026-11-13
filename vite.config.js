@@ -12,6 +12,7 @@ export default defineConfig({
                 'resources/js/app.js',
                 'resources/js/dashboard/main.jsx',
                 'resources/js/super-admin/main.jsx',
+                'resources/js/report-ai-summary.js',
             ],
             refresh: true,
         }),

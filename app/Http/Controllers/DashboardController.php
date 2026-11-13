@@ -86,13 +86,20 @@ class DashboardController extends Controller
 
         $reportSubmissions = Report::query()
             ->where('created_by', $user->id)
+            ->with('aiAnalysis:id,report_id,status')
             ->latest('submitted_at')
             ->get(['id', 'business_id', 'title', 'description', 'reporting_period', 'reporting_period_start', 'reporting_period_end', 'status', 'review_feedback', 'submitted_at', 'reviewed_at', 'file_name'])
             ->map(function (Report $report) use ($businessNames): array {
-                return $this->withBusinessName($report->only([
+                $record = $this->withBusinessName($report->only([
                     'id', 'business_id', 'title', 'description', 'reporting_period', 'reporting_period_start', 'reporting_period_end', 'status',
                     'review_feedback', 'submitted_at', 'reviewed_at', 'file_name',
                 ]), $businessNames);
+
+                if ($report->status === 'published' && $report->aiAnalysis?->status === 'ready') {
+                    $record['ai_summary_url'] = route('dashboard.reports.submissions.summary', $report);
+                }
+
+                return $record;
             });
 
         $eventsQuery = Event::query()

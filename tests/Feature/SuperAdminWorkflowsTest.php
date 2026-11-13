@@ -9,8 +9,10 @@ use App\Models\Membership;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Report;
+use App\Models\ReportAIAnalysis;
 use App\Models\Service;
 use App\Models\User;
+use App\Services\Ai\GeminiReportAnalyzer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -278,6 +280,100 @@ class SuperAdminWorkflowsTest extends TestCase
             'visibility' => 'private',
             'file' => UploadedFile::fake()->create('payload.exe', 10, 'application/octet-stream'),
         ])->assertUnprocessable();
+    }
+
+    public function test_system_admins_can_generate_missing_ai_summaries_for_published_reports(): void
+    {
+        $admin = User::factory()->administrator()->create();
+        $superAdmin = User::factory()->superAdmin()->create();
+        $reports = [
+            Report::factory()->create(['status' => 'published']),
+            Report::factory()->create(['status' => 'published']),
+        ];
+        $reports[0]->aiAnalysis()->create(['status' => 'failed', 'error' => 'Previous attempt failed.']);
+
+        $analysis = [
+            'json' => ['title' => 'Summary', 'summary' => 'A concise report summary.', 'blocks' => []],
+            'html' => '<section>Summary</section>',
+            'model' => 'gemini-test',
+            'files_hash' => hash('sha256', 'report'),
+        ];
+        $this->mock(GeminiReportAnalyzer::class, function ($mock) use ($reports, $analysis): void {
+            $mock->shouldReceive('analyze')
+                ->twice()
+                ->withArgs(fn (Report $report, ?string $skipIfHash = null): bool => in_array($report->id, array_map(fn (Report $item) => $item->id, $reports), true) && $skipIfHash === null)
+                ->andReturn($analysis);
+        });
+
+        foreach ([$admin, $superAdmin] as $index => $operator) {
+            $this->actingAs($operator)
+                ->postJson(route('super-admin.reports.ai-summary.regenerate', $reports[$index]))
+                ->assertOk()
+                ->assertJsonPath('ai_status', 'ready');
+
+            $this->assertDatabaseHas('report_a_i_analyses', [
+                'report_id' => $reports[$index]->id,
+                'status' => 'ready',
+                'model' => 'gemini-test',
+            ]);
+
+            $this->getJson(route('super-admin.workspace', [
+                'section' => 'reports',
+                'search' => $reports[$index]->title,
+            ]))
+                ->assertOk()
+                ->assertJsonPath('data.0.id', $reports[$index]->id)
+                ->assertJsonPath('data.0.ai_status', 'ready');
+        }
+    }
+
+    public function test_ai_summary_regeneration_is_not_allowed_for_unpublished_or_already_ready_reports(): void
+    {
+        $admin = User::factory()->superAdmin()->create();
+        $pendingReport = Report::factory()->create(['status' => 'pending_review']);
+        $readyReport = Report::factory()->create(['status' => 'published']);
+        $readyReport->aiAnalysis()->create([
+            'status' => 'ready',
+            'summary_json' => ['summary' => 'Already ready.'],
+        ]);
+        $this->mock(GeminiReportAnalyzer::class)->shouldNotReceive('analyze');
+
+        $this->actingAs($admin)
+            ->postJson(route('super-admin.reports.ai-summary.regenerate', $pendingReport))
+            ->assertUnprocessable();
+        $this->postJson(route('super-admin.reports.ai-summary.regenerate', $readyReport))
+            ->assertConflict();
+    }
+
+    public function test_ai_summary_regeneration_is_restricted_to_system_admins(): void
+    {
+        $report = Report::factory()->create(['status' => 'published']);
+
+        $this->actingAs(User::factory()->create())
+            ->postJson(route('super-admin.reports.ai-summary.regenerate', $report))
+            ->assertForbidden();
+    }
+
+    public function test_ai_summary_generation_failure_is_saved_and_returned_to_the_admin(): void
+    {
+        $admin = User::factory()->superAdmin()->create();
+        $report = Report::factory()->create(['status' => 'published']);
+
+        $this->mock(GeminiReportAnalyzer::class)
+            ->shouldReceive('analyze')
+            ->once()
+            ->andThrow(new \RuntimeException('Gemini is unavailable.'));
+
+        $this->actingAs($admin)
+            ->postJson(route('super-admin.reports.ai-summary.regenerate', $report))
+            ->assertUnprocessable()
+            ->assertJsonPath('ai_status', 'failed');
+
+        $this->assertDatabaseHas('report_a_i_analyses', [
+        'report_id' => $report->id,
+        'status' => 'failed',
+        'error' => 'Gemini is unavailable.',
+        ]);
     }
 
     public function test_csv_exports_are_admin_only_and_escape_spreadsheet_formulas(): void

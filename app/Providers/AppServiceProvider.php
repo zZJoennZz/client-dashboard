@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Actions\Fortify\ResetUserPassword;
 use App\Http\Controllers\RegistrationController;
 use App\Http\Middleware\EnsureDashboardModuleAccess;
 use App\Http\Middleware\EnsureSystemAdminModuleAccess;
@@ -32,6 +33,9 @@ class AppServiceProvider extends ServiceProvider
     {
         Fortify::loginView('auth.login');
         Fortify::registerView('auth.register');
+        Fortify::requestPasswordResetLinkView('auth.forgot-password');
+        Fortify::resetPasswordView('auth.reset-password');
+        Fortify::resetUserPasswordsUsing(ResetUserPassword::class);
         Fortify::createUsersUsing(RegistrationController::class);
         $this->app['router']->aliasMiddleware('dashboard.module', EnsureDashboardModuleAccess::class);
         $this->app['router']->aliasMiddleware('system.module', EnsureSystemAdminModuleAccess::class);

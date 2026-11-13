@@ -102,6 +102,7 @@ export default function AdminWorkflows({ section, workspaceUrl, urls, exportUrl 
     const [preview, setPreview] = useState(null);
     const [registrations, setRegistrations] = useState(null);
     const [membershipDetails, setMembershipDetails] = useState(null);
+    const [pendingAiSummaryId, setPendingAiSummaryId] = useState(null);
     const [calendarMode, setCalendarMode] = useState(false);
     const [query, setQuery] = useState('');
 
@@ -221,6 +222,12 @@ export default function AdminWorkflows({ section, workspaceUrl, urls, exportUrl 
         } catch (exception) {
             setError(exception.message);
         }
+    }
+
+    async function regenerateAiSummary(row) {
+        setPendingAiSummaryId(row.id);
+        await action(`${urls.reports}/${row.id}/ai-summary/regenerate`, 'POST');
+        setPendingAiSummaryId(null);
     }
 
     async function exportCsv(type, extra = {}) {
@@ -350,7 +357,7 @@ export default function AdminWorkflows({ section, workspaceUrl, urls, exportUrl 
                     {dataRows(data).map((row) => <article key={row.id} className="rounded-lg border border-[var(--rr-border)] p-4">
                         <div className="flex flex-wrap items-start justify-between gap-3">
                             <div><h3 className="font-semibold">{row.title || row.name || row.subject || row.order_number || row.business_name || `Record #${row.id}`}</h3><p className="mt-1 text-xs text-[var(--rr-neutral-mid)]">{row.scope === 'program' ? 'Program-wide' : row.business_name || row.plan || row.service_name || ''} {row.status ? ` · ${row.status}` : ''}{row.deleted ? ' · Archived' : ''}</p><p className="mt-1 text-xs text-[var(--rr-neutral-mid)]">{row.file_name || row.scheduled_at || row.starts_at || row.end_date || ''}</p>{section === 'content' && <p className="mt-2 text-xs text-[var(--rr-neutral-mid)]">Version {row.version} · {row.view_count} views · {row.acknowledgments?.length ?? 0} business acknowledgments</p>}{communications && <p className="mt-2 text-xs text-[var(--rr-neutral-mid)]">Recipients: {row.recipient_count} · Delivered: {row.delivered_count} · Failed: {row.failed_count}{row.failed_recipients?.length ? ` (${row.failed_recipients.join(', ')})` : ''}</p>}</div>
-                            <Actions section={section} row={row} urls={urls} action={action} startEdit={startEdit} showMembershipDetails={showMembershipDetails} startAnnouncementEdit={(item) => {
+                            <Actions section={section} row={row} urls={urls} action={action} startEdit={startEdit} regenerateAiSummary={regenerateAiSummary} pendingAiSummaryId={pendingAiSummaryId} showMembershipDetails={showMembershipDetails} startAnnouncementEdit={(item) => {
                                 setEditingId(item.id);
                                 setRecord({ subject: item.subject, body: item.body, audience: item.audience ?? {} });
                                 window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -405,13 +412,17 @@ function Field({ name, label, type = 'text', required = false, options = [], bus
     </label>;
 }
 
-function Actions({ section, row, urls, action, startEdit, startAnnouncementEdit, showRegistrants, showMembershipDetails, exportCsv }) {
+function Actions({ section, row, urls, action, startEdit, regenerateAiSummary, pendingAiSummaryId, startAnnouncementEdit, showRegistrants, showMembershipDetails, exportCsv }) {
     return <div className="flex flex-wrap gap-2">
         {(section === 'content' || section === 'events' || section === 'marketing' || (section === 'reports' && !['pending_review', 'rejected'].includes(row.status))) && <button className={secondary} onClick={() => startEdit(row)}>Edit</button>}
         {section === 'services' && !row.deleted && <button className={secondary} onClick={() => startEdit(row)}>Edit</button>}
         {section === 'content' && <>{row.file_name && <a className={`${secondary} inline-flex items-center`} href={`${urls.resources}/${row.id}/download`}>Download</a>}<button className={secondary} onClick={() => action(`${urls.resources}/${row.id}`, 'DELETE')}>Archive</button></>}
         {section === 'reports' && <>
             {row.file_name && <a className={`${secondary} inline-flex items-center`} href={`${urls.reports}/${row.id}/download`}>Download</a>}
+            {row.status === 'published' && row.ai_status !== 'ready' && <button className={secondary} disabled={row.ai_status === 'processing' || pendingAiSummaryId === row.id} onClick={() => regenerateAiSummary(row)}>
+                {row.ai_status === 'processing' || pendingAiSummaryId === row.id ? 'Generating AI summary…' : row.ai_status === 'failed' ? 'Regenerate AI summary' : 'Generate AI summary'}
+            </button>}
+            {row.ai_status === 'ready' && <span className="self-center text-xs font-semibold text-[var(--rr-success)]">AI summary ready</span>}
             {row.status === 'pending_review' && <>
                 <button className={secondary} onClick={() => action(`${urls.reports}/${row.id}/review`, 'PATCH', { decision: 'approve', visibility: 'member' })}>Approve and publish</button>
                 <button className={secondary} onClick={() => {

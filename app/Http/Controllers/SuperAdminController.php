@@ -619,24 +619,37 @@ class SuperAdminController extends Controller
                 break;
 
             case 'reports':
-                $query = Report::query()->with(['business', 'creator'])->latest('created_at');
-                $mapper = fn (Report $report): array => [
-                    'id' => $report->id,
-                    'business_id' => $report->business_id,
-                    'title' => $report->title,
-                    'description' => $report->description,
-                    'business_name' => $report->business?->company_name ?? 'Deleted business',
-                    'reporting_period' => $report->reporting_period,
-                    'reporting_period_start' => $report->reporting_period_start?->toDateString(),
-                    'reporting_period_end' => $report->reporting_period_end?->toDateString(),
-                    'status' => $report->status,
-                    'visibility' => $report->visibility,
-                    'file_name' => $report->file_name,
-                    'creator_name' => $report->creator?->email ?? 'Unknown member',
-                    'submitted_at' => $report->submitted_at?->toDateTimeString(),
-                    'review_feedback' => $report->review_feedback,
-                    'published_at' => $report->published_at?->toDateString(),
-                ];
+                $query = Report::query()
+                    ->with(['business', 'creator', 'aiAnalysis:id,report_id,status,summary_json,updated_at'])
+                    ->latest('created_at');
+                $mapper = function (Report $report): array {
+                    $aiStatus = $report->aiAnalysis?->status ?? 'missing';
+                    if ($aiStatus === 'ready' && ! filled(data_get($report->aiAnalysis?->summary_json, 'summary'))) {
+                        $aiStatus = 'failed';
+                    }
+                    if ($aiStatus === 'processing' && $report->aiAnalysis?->updated_at?->lt(now()->subMinutes(5))) {
+                        $aiStatus = 'failed';
+                    }
+
+                    return [
+                        'id' => $report->id,
+                        'business_id' => $report->business_id,
+                        'title' => $report->title,
+                        'description' => $report->description,
+                        'business_name' => $report->business?->company_name ?? 'Deleted business',
+                        'reporting_period' => $report->reporting_period,
+                        'reporting_period_start' => $report->reporting_period_start?->toDateString(),
+                        'reporting_period_end' => $report->reporting_period_end?->toDateString(),
+                        'status' => $report->status,
+                        'visibility' => $report->visibility,
+                        'file_name' => $report->file_name,
+                        'creator_name' => $report->creator?->email ?? 'Unknown member',
+                        'submitted_at' => $report->submitted_at?->toDateTimeString(),
+                        'review_feedback' => $report->review_feedback,
+                        'published_at' => $report->published_at?->toDateString(),
+                        'ai_status' => $aiStatus,
+                    ];
+                };
                 break;
 
             case 'events':
