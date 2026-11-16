@@ -41,7 +41,7 @@ The frontend is split: **public pages are Blade templates**, while **portals (me
 ## Tech Stack
 
 ### Backend
-- **PHP** `^8.2`
+- **PHP** `^8.5.12`
 - **Laravel** `^12.0`
 - **Laravel Fortify** `^1.37` — authentication (Magic Link / email-based login)
 - **Laravel Sanctum** `^4.3` — API token auth for the React dashboards
