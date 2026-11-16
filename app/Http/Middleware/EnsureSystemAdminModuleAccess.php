@@ -18,7 +18,7 @@ class EnsureSystemAdminModuleAccess
                 $firstAllowedModule = collect(User::SYSTEM_ADMIN_MODULES)
                     ->first(fn (string $candidate): bool => $request->user()->canAccessSystemAdminModule($candidate));
                 if ($firstAllowedModule !== null) {
-                    return redirect('/super-admin/'.$firstAllowedModule);
+                    return redirect('/system/'.$firstAllowedModule);
                 }
             }
 
@@ -59,6 +59,7 @@ class EnsureSystemAdminModuleAccess
             'services' => 'orders',
             'announcements' => 'communications',
             'event-registrations' => 'events',
+            'access-roles' => 'accounts',
             default => $routeSegment,
         };
 

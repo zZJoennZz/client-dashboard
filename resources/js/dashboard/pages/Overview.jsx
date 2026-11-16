@@ -35,7 +35,7 @@ export default function Overview({ data, navigate }) {
                     <div className="min-w-0">
                         <p className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.17em] text-white/65">
                             <span className="size-2 rounded-full bg-[var(--rr-accent)]" />
-                            {data.user.is_super_admin ? 'Super Administrator workspace' : 'Member workspace'}
+                            {data.user.is_super_admin ? 'System Administrator workspace' : 'Member workspace'}
                         </p>
 
                         <h1 className="mt-4 max-w-3xl text-3xl font-semibold tracking-tight sm:text-4xl lg:text-5xl">

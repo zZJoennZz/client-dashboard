@@ -9,7 +9,7 @@ export default function Membership({ data }) {
 
         return (
             <div>
-                <PageHeading eyebrow="Super Administrator" title="Memberships">
+                <PageHeading eyebrow="System Administrator" title="Memberships">
                     Membership plans and status across all businesses.
                 </PageHeading>
                 <Card>

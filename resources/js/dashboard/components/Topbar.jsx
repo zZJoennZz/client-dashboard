@@ -3,7 +3,7 @@ import React from 'react';
 export default function Topbar({ data, pageTitle, setMenuOpen }) {
     const token = document.querySelector('meta[name="csrf-token"]')?.content ?? '';
     const roleLabel = {
-        super_administrator: 'Super Administrator',
+        super_administrator: 'System Administrator',
         administrator: 'Administrator',
         member: 'Member',
     }[data?.user?.dashboard_role];

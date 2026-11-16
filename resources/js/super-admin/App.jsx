@@ -1,8 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AdminWorkflows from './Workflows';
 import Engagement from './Engagement';
 import PlatformSettings from './PlatformSettings';
 import AccountEditor from './AccountEditor';
+import AccessRoleManager from './AccessRoleManager';
 import SearchableBusinessSelect from '../components/SearchableBusinessSelect';
 
 const navigation = [
@@ -25,7 +26,7 @@ const navigation = [
 const availableSections = new Set(['overview', 'businesses', 'accounts', 'memberships', 'content', 'reports', 'events', 'marketing', 'orders', 'billing', 'analytics', 'engagement', 'communications', 'audit', 'settings']);
 
 function sectionFromPath(pathname) {
-    const segment = pathname.replace(/^\/super-admin\/?/, '').split('/')[0];
+    const segment = pathname.replace(/^\/system\/?/, '').split('/')[0];
     if (!segment) return 'overview';
     return navigation.some(([key]) => key === segment) ? segment : null;
 }
@@ -36,13 +37,15 @@ function Definition({ label, value }) {
 
 async function requestJson(url, options = {}) {
     const formData = options.body instanceof FormData;
+    const method = String(options.method ?? 'GET').toUpperCase();
+    const requiresCsrf = !['GET', 'HEAD', 'OPTIONS'].includes(method);
     const response = await fetch(url, {
         ...options,
         credentials: 'same-origin',
         headers: {
             Accept: 'application/json',
             'X-Requested-With': 'XMLHttpRequest',
-            ...(options.body ? {
+            ...(requiresCsrf ? {
                 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? '',
             } : {}),
             ...(!formData && options.body ? { 'Content-Type': 'application/json' } : {}),
@@ -66,7 +69,7 @@ async function requestJson(url, options = {}) {
 
 export default function App({
     overviewUrl, engagementUrl, settingsUrl, settingsUpdateUrl, businessesUrl, accountsUrl, workspaceUrl, loginUrl,
-    membershipsUrl, resourcesUrl, reportsUrl, eventsUrl, marketingUrl,
+    membershipsUrl, resourcesUrl, reportsUrl, eventsUrl, marketingUrl, accessRolesUrl,
     servicesUrl, ordersUrl, announcementsUrl, exportUrl,
     moduleAccess, roleLabel, canManageSystemRoles,
 }) {
@@ -80,7 +83,7 @@ export default function App({
     }, []);
 
     const navigate = useCallback((key) => {
-        const path = key === 'overview' ? '/super-admin' : `/super-admin/${key}`;
+        const path = key === 'overview' ? '/system' : `/system/${key}`;
         if (window.location.pathname !== path) {
             window.history.pushState({}, '', path);
         }
@@ -106,7 +109,7 @@ export default function App({
                     {navigation.filter(([key]) => moduleAccess?.[key]?.read === true).map(([key, label]) => {
                         const ready = availableSections.has(key);
                         return ready ? (
-                            <a key={key} href={key === 'overview' ? '/super-admin' : `/super-admin/${key}`} aria-current={section === key ? 'page' : undefined} onClick={(event) => {
+                            <a key={key} href={key === 'overview' ? '/system' : `/system/${key}`} aria-current={section === key ? 'page' : undefined} onClick={(event) => {
                                 event.preventDefault();
                                 navigate(key);
                             }} className={`flex min-h-11 items-center rounded-lg px-3 text-sm transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--rr-warning)] ${section === key ? 'bg-white/15 font-semibold text-white' : 'text-white/70 hover:bg-white/5 hover:text-white'}`}>
@@ -144,6 +147,7 @@ export default function App({
                         url={accountsUrl}
                         requestJson={requestJson}
                         exportUrl={exportUrl}
+                        accessRolesUrl={accessRolesUrl}
                         canManageSystemRoles={canManageSystemRoles}
                         canManagePermissions={canManageSystemRoles}
                         canWriteAccounts={moduleAccess?.accounts?.write === true}
@@ -206,7 +210,7 @@ function Overview({ url, requestJson }) {
     const metrics = data.metrics;
     const cards = [
         ['Businesses', metrics.businesses_total, `${metrics.businesses_published} published · ${metrics.businesses_unpublished} unpublished`],
-        ['Member accounts', metrics.regular_accounts, `${metrics.administrator_accounts} Administrators · ${metrics.super_admins} Super Administrators · ${metrics.new_accounts_30_days} new in 30 days`],
+        ['Member accounts', metrics.regular_accounts, `${metrics.administrator_accounts} Administrators · ${metrics.super_admins} System Administrator account · ${metrics.new_accounts_30_days} new in 30 days`],
         ['Active memberships', data.membership_statuses.active ?? 0, 'Counts use membership records'],
         ['Incomplete profiles', metrics.incomplete_businesses, 'Missing description, contact email, or website'],
         ['Upcoming events', metrics.upcoming_events_30_days, `${metrics.event_registrations} active registrations total`],
@@ -339,7 +343,7 @@ function Businesses({ url, requestJson }) {
                             URL.revokeObjectURL(anchor.href);
                         } catch (requestError) { setActionError(requestError.message); }
                     }}>Export CSV</button>
-                    <button type="button" className={primaryButton} onClick={() => { setEditingBusiness(null); setActionError(''); }}>Create business</button>
+                    <button type="button" className={primaryButton} onClick={() => { setEditingBusiness(null); setActionError(''); setNotice(''); }}>Create business</button>
                 </div>
             </div>
             {editingBusiness !== undefined && <BusinessEditor
@@ -352,7 +356,9 @@ function Businesses({ url, requestJson }) {
                     setEditingBusiness(result.business);
                     setSelectedBusiness(result.business);
                 }}
-                onCancel={() => setEditingBusiness(undefined)}
+                error={actionError}
+                notice={notice}
+                onCancel={() => { setEditingBusiness(undefined); setActionError(''); }}
                 onSave={async (values) => {
                     setActionError('');
                     setNotice('');
@@ -388,9 +394,9 @@ function Businesses({ url, requestJson }) {
                 </form>
             </Panel>
             {notice && <div role="status" className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-900">{notice}</div>}
-            {actionError && <InlineError>{actionError}</InlineError>}
+            {actionError && editingBusiness === undefined && <InlineError>{actionError}</InlineError>}
             {detailLoading && <p role="status" className="text-sm text-[var(--rr-neutral-mid)]">Loading business details…</p>}
-            {selectedBusiness && <BusinessDetail business={selectedBusiness} onClose={() => setSelectedBusiness(null)} onEdit={() => setEditingBusiness(selectedBusiness)} />}
+            {selectedBusiness && <BusinessDetail business={selectedBusiness} onClose={() => setSelectedBusiness(null)} onEdit={() => { setActionError(''); setNotice(''); setEditingBusiness(selectedBusiness); }} />}
             {loading && !data ? <Loading /> : error && !data ? <ErrorState message={error} onRetry={refresh} /> : (
                 <Panel title={`${data.meta.total} businesses`} eyebrow="Directory">
                     {data.data.length ? (
@@ -445,7 +451,7 @@ function BusinessDetail({ business, onClose, onEdit }) {
             <div className="mt-6 grid gap-6 border-t border-[var(--rr-border)] pt-5 lg:grid-cols-2">
                 <div>
                     <h3 className="font-semibold">Associated accounts</h3>
-                    {business.members.length ? <ul className="mt-3 divide-y divide-[var(--rr-border)]">{business.members.map((member) => <li key={member.id} className="py-3 first:pt-0"><p className="text-sm font-medium">{member.name} <span className="font-normal text-[var(--rr-neutral-mid)]">· {member.role}</span></p><p className="mt-1 text-xs text-[var(--rr-neutral-mid)]">{member.email}{member.account_type === 'super_admin' ? ' · Super Administrator' : member.account_type === 'administrator' ? ' · Administrator' : ' · Member'}</p></li>)}</ul> : <p className="mt-2 text-sm text-[var(--rr-neutral-mid)]">No active accounts are associated.</p>}
+                    {business.members.length ? <ul className="mt-3 divide-y divide-[var(--rr-border)]">{business.members.map((member) => <li key={member.id} className="py-3 first:pt-0"><p className="text-sm font-medium">{member.name} <span className="font-normal text-[var(--rr-neutral-mid)]">· {member.role}</span></p><p className="mt-1 text-xs text-[var(--rr-neutral-mid)]">{member.email}{member.account_type === 'super_admin' ? ' · System Administrator' : member.account_type === 'administrator' ? ' · Administrator' : ' · Member'}</p></li>)}</ul> : <p className="mt-2 text-sm text-[var(--rr-neutral-mid)]">No active accounts are associated.</p>}
                 </div>
                 <div>
                     <h3 className="font-semibold">Membership history</h3>
@@ -458,11 +464,14 @@ function BusinessDetail({ business, onClose, onEdit }) {
     );
 }
 
-function BusinessEditor({ business, onCancel, onSave, requestJson, onReload }) {
+function BusinessEditor({ business, onCancel, onSave, requestJson, onReload, error, notice }) {
     const [mediaError, setMediaError] = useState('');
     const [mediaNotice, setMediaNotice] = useState('');
     const [videoType, setVideoType] = useState(business?.video?.source_type ?? 'youtube');
     const [highlights, setHighlights] = useState(business?.highlights ?? []);
+    const editorRef = useRef(null);
+    const onCancelRef = useRef(onCancel);
+    onCancelRef.current = onCancel;
     const values = {
         company_name: business?.name ?? '',
         category: business?.category ?? '',
@@ -505,6 +514,23 @@ function BusinessEditor({ business, onCancel, onSave, requestJson, onReload }) {
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const currentHours = new Map((business?.hours ?? []).map((hour) => [Number(hour.day_of_week), hour]));
 
+    useEffect(() => {
+        const previousFocus = document.activeElement;
+        const previousOverflow = document.body.style.overflow;
+        const handleKeyDown = (event) => {
+            if (event.key === 'Escape') onCancelRef.current();
+        };
+        document.body.style.overflow = 'hidden';
+        document.addEventListener('keydown', handleKeyDown);
+        editorRef.current?.focus();
+
+        return () => {
+            document.body.style.overflow = previousOverflow;
+            document.removeEventListener('keydown', handleKeyDown);
+            previousFocus?.focus?.();
+        };
+    }, []);
+
     async function uploadImages(event) {
         event.preventDefault();
         const formElement = event.currentTarget;
@@ -515,7 +541,7 @@ function BusinessEditor({ business, onCancel, onSave, requestJson, onReload }) {
         files.forEach((file) => payload.append('images[]', file));
         files.forEach(() => payload.append('alt_text[]', altText));
         try {
-            const response = await requestJson(`/super-admin/api/businesses/${business.id}/images`, { method: 'POST', body: payload });
+            const response = await requestJson(`/system/api/businesses/${business.id}/images`, { method: 'POST', body: payload });
             setMediaNotice(`${response.data.length} image${response.data.length === 1 ? '' : 's'} uploaded.`);
             formElement.reset();
             await onReload();
@@ -526,7 +552,7 @@ function BusinessEditor({ business, onCancel, onSave, requestJson, onReload }) {
 
     async function updateImage(image, changes) {
         try {
-            await requestJson(`/super-admin/api/businesses/${business.id}/images/${image.id}`, {
+            await requestJson(`/system/api/businesses/${business.id}/images/${image.id}`, {
                 method: 'PUT',
                 body: JSON.stringify(changes),
             });
@@ -539,7 +565,7 @@ function BusinessEditor({ business, onCancel, onSave, requestJson, onReload }) {
     async function removeImage(image) {
         if (!window.confirm('Remove this image from the business profile?')) return;
         try {
-            await requestJson(`/super-admin/api/businesses/${business.id}/images/${image.id}`, { method: 'DELETE' });
+            await requestJson(`/system/api/businesses/${business.id}/images/${image.id}`, { method: 'DELETE' });
             setMediaNotice('Image removed.');
             await onReload();
         } catch (error) {
@@ -553,11 +579,11 @@ function BusinessEditor({ business, onCancel, onSave, requestJson, onReload }) {
         const current = images[index];
         const other = images[otherIndex];
         try {
-            await requestJson(`/super-admin/api/businesses/${business.id}/images/${current.id}`, {
+            await requestJson(`/system/api/businesses/${business.id}/images/${current.id}`, {
                 method: 'PUT',
                 body: JSON.stringify({ sort_order: other.sort_order }),
             });
-            await requestJson(`/super-admin/api/businesses/${business.id}/images/${other.id}`, {
+            await requestJson(`/system/api/businesses/${business.id}/images/${other.id}`, {
                 method: 'PUT',
                 body: JSON.stringify({ sort_order: current.sort_order }),
             });
@@ -572,7 +598,7 @@ function BusinessEditor({ business, onCancel, onSave, requestJson, onReload }) {
         const form = new FormData(event.currentTarget);
         form.set('source_type', videoType);
         try {
-            await requestJson(`/super-admin/api/businesses/${business.id}/video`, { method: 'POST', body: form });
+            await requestJson(`/system/api/businesses/${business.id}/video`, { method: 'POST', body: form });
             setMediaNotice('Business video saved.');
             await onReload();
         } catch (error) {
@@ -582,7 +608,7 @@ function BusinessEditor({ business, onCancel, onSave, requestJson, onReload }) {
 
     async function removeVideo() {
         try {
-            await requestJson(`/super-admin/api/businesses/${business.id}/video`, { method: 'DELETE' });
+            await requestJson(`/system/api/businesses/${business.id}/video`, { method: 'DELETE' });
             setVideoType('youtube');
             setMediaNotice('Business video removed.');
             await onReload();
@@ -592,72 +618,109 @@ function BusinessEditor({ business, onCancel, onSave, requestJson, onReload }) {
     }
 
     return (
-        <Panel title={business ? `Edit ${business.name}` : 'Create business profile'}>
-            <form onSubmit={(event) => {
-                event.preventDefault();
-                const form = new FormData(event.currentTarget);
-                const payload = Object.fromEntries(form.entries());
-                payload.is_active = form.has('is_active');
-                payload.is_featured = form.has('is_featured');
-                payload.additional_categories = form.get('additional_categories').split(',').map((item) => item.trim()).filter(Boolean);
-                payload.specialties = form.get('specialties').split(',').map((item) => item.trim()).filter(Boolean);
-                payload.appointment_methods = form.get('appointment_methods').split(',').map((item) => item.trim()).filter(Boolean);
-                payload.service_areas = form.get('service_areas').split(',').map((item) => item.trim()).filter(Boolean);
-                payload.hours = dayNames.map((_, day) => ({
-                    day_of_week: day,
-                    opens_at: form.get(`opens_at_${day}`) || null,
-                    closes_at: form.get(`closes_at_${day}`) || null,
-                    is_closed: form.has(`closed_${day}`),
-                    by_appointment: form.has(`appointment_${day}`),
-                })).filter((hour) => hour.is_closed || hour.by_appointment || hour.opens_at || hour.closes_at);
-                payload.highlights = highlights.filter((highlight) => highlight.name?.trim()).map((highlight) => ({
-                    name: highlight.name.trim(),
-                    description: highlight.description ?? '',
-                    price_information: highlight.price_information ?? '',
-                    is_active: Boolean(highlight.is_active),
-                }));
-                onSave(payload);
-            }} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                <FormInput name="company_name" label="Business name" required initial={values.company_name} />
-                <FormInput name="category" label="Category" required initial={values.category} />
-                <FormInput name="additional_categories" label="Additional categories (comma separated)" initial={values.additional_categories} />
-                <FormInput name="tagline" label="Tagline" initial={values.tagline} />
-                <FormInput name="short_description" label="Short description" initial={values.short_description} />
-                <FormInput name="year_established" label="Year established" type="number" initial={values.year_established} />
-                <FormInput name="employee_count" label="Employee count" initial={values.employee_count} />
-                <FormInput name="contact_email" label="Contact email" type="email" initial={values.contact_email} />
-                <FormInput name="contact_name" label="Contact name" initial={values.contact_name} />
-                <FormInput name="contact_phone" label="Contact phone" initial={values.contact_phone} />
-                <FormInput name="alternate_phone" label="Alternate phone" initial={values.alternate_phone} />
-                <FormInput name="website" label="Website" type="url" initial={values.website} />
-                <FormInput name="facebook_url" label="Facebook URL" type="url" initial={values.facebook_url} />
-                <FormInput name="instagram_url" label="Instagram URL" type="url" initial={values.instagram_url} />
-                <FormInput name="linkedin_url" label="LinkedIn URL" type="url" initial={values.linkedin_url} />
-                <FormInput name="tiktok_url" label="TikTok URL" type="url" initial={values.tiktok_url} />
-                <FormInput name="youtube_url" label="YouTube URL" type="url" initial={values.youtube_url} />
-                <FormInput name="other_social_url" label="Other social URL" type="url" initial={values.other_social_url} />
-                <FormInput name="address_line_1" label="Address" initial={values.address_line_1} />
-                <FormInput name="address_line_2" label="Address line 2" initial={values.address_line_2} />
-                <FormInput name="city" label="City" initial={values.city} />
-                <FormInput name="state" label="State" initial={values.state} />
-                <FormInput name="postal_code" label="Postal code" initial={values.postal_code} />
-                <FormInput name="country" label="Country (ISO code)" required initial={values.country} />
-                <FormInput name="latitude" label="Latitude" type="number" initial={values.latitude} />
-                <FormInput name="longitude" label="Longitude" type="number" initial={values.longitude} />
-                <FormInput name="specialties" label="Specialties (comma separated)" initial={values.specialties} />
-                <FormInput name="appointment_methods" label="Appointment methods (comma separated)" initial={values.appointment_methods} />
-                <FormInput name="service_areas" label="Service areas (comma separated)" initial={values.service_areas} />
-                <label className="block text-xs font-semibold">Directory visibility
-                    <select name="directory_visibility" defaultValue={values.directory_visibility} className={`${inputClass} mt-1`}>
-                        <option value="private">Private</option><option value="members">Members</option><option value="public">Public</option>
-                    </select>
-                </label>
-                <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="is_active" defaultChecked={values.is_active} className="min-h-5 min-w-5 accent-[var(--rr-primary)]" />Active business</label>
-                <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="is_featured" defaultChecked={values.is_featured} className="min-h-5 min-w-5 accent-[var(--rr-primary)]" />Feature on the homepage</label>
-                <label className="block text-xs font-semibold sm:col-span-2 lg:col-span-3">Description<textarea name="description" defaultValue={values.description} rows="4" className={`${inputClass} mt-1`} /></label>
-                <label className="block text-xs font-semibold sm:col-span-2 lg:col-span-3">Ownership information<textarea name="ownership_information" defaultValue={values.ownership_information} rows="2" className={`${inputClass} mt-1`} /></label>
-                <label className="block text-xs font-semibold sm:col-span-2 lg:col-span-3">Accessibility information<textarea name="accessibility_information" defaultValue={values.accessibility_information} rows="2" className={`${inputClass} mt-1`} /></label>
-                <div className="sm:col-span-2 lg:col-span-3">
+        <div
+            ref={editorRef}
+            tabIndex={-1}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="business-editor-title"
+            className="fixed inset-0 z-[70] overflow-y-auto bg-slate-950/50 p-3 sm:p-6"
+            onClick={(event) => {
+                if (event.target === event.currentTarget) onCancel();
+            }}
+        >
+            <section className="mx-auto flex max-h-[calc(100vh-1.5rem)] max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl sm:max-h-[calc(100vh-3rem)]">
+                <header className="flex shrink-0 items-start justify-between gap-4 border-b border-[var(--rr-border)] px-5 py-4 sm:px-7">
+                    <div>
+                        <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--rr-accent)]">{business ? 'Business profile' : 'New business'}</p>
+                        <h2 id="business-editor-title" className="mt-1 text-xl font-semibold">{business ? `Edit ${business.name}` : 'Create business profile'}</h2>
+                        <p className="mt-1 text-sm text-[var(--rr-neutral-mid)]">Complete the sections that apply, then save your changes.</p>
+                    </div>
+                    <button type="button" onClick={onCancel} className={secondaryButton}>Close</button>
+                </header>
+                <div className="min-h-0 space-y-5 overflow-y-auto p-4 sm:p-6">
+                    {error && <InlineError>{error}</InlineError>}
+                    {notice && <p role="status" className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-900">{notice}</p>}
+                    <form onSubmit={(event) => {
+                        event.preventDefault();
+                        const form = new FormData(event.currentTarget);
+                        const payload = Object.fromEntries(form.entries());
+                        payload.is_active = form.has('is_active');
+                        payload.is_featured = form.has('is_featured');
+                        payload.additional_categories = form.get('additional_categories').split(',').map((item) => item.trim()).filter(Boolean);
+                        payload.specialties = form.get('specialties').split(',').map((item) => item.trim()).filter(Boolean);
+                        payload.appointment_methods = form.get('appointment_methods').split(',').map((item) => item.trim()).filter(Boolean);
+                        payload.service_areas = form.get('service_areas').split(',').map((item) => item.trim()).filter(Boolean);
+                        payload.hours = dayNames.map((_, day) => ({
+                            day_of_week: day,
+                            opens_at: form.get(`opens_at_${day}`) || null,
+                            closes_at: form.get(`closes_at_${day}`) || null,
+                            is_closed: form.has(`closed_${day}`),
+                            by_appointment: form.has(`appointment_${day}`),
+                        })).filter((hour) => hour.is_closed || hour.by_appointment || hour.opens_at || hour.closes_at);
+                        payload.highlights = highlights.filter((highlight) => highlight.name?.trim()).map((highlight) => ({
+                            name: highlight.name.trim(),
+                            description: highlight.description ?? '',
+                            price_information: highlight.price_information ?? '',
+                            is_active: Boolean(highlight.is_active),
+                        }));
+                        onSave(payload);
+                    }} className="space-y-5">
+                <section className="rounded-xl border border-[var(--rr-border)] p-4 sm:p-5">
+                    <h3 className="font-semibold">Business identity</h3>
+                    <p className="mt-1 text-xs text-[var(--rr-neutral-mid)]">Name and short copy appear in directory listings.</p>
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        <FormInput name="company_name" label="Business name" required initial={values.company_name} />
+                        <FormInput name="category" label="Category" required initial={values.category} />
+                        <FormInput name="additional_categories" label="Additional categories (comma separated)" initial={values.additional_categories} />
+                        <FormInput name="tagline" label="Tagline" initial={values.tagline} />
+                        <FormInput name="short_description" label="Short description" initial={values.short_description} />
+                        <FormInput name="year_established" label="Year established" type="number" initial={values.year_established} />
+                        <FormInput name="employee_count" label="Employee count" initial={values.employee_count} />
+                        <label className="block text-xs font-semibold sm:col-span-2 lg:col-span-3">Description<textarea name="description" defaultValue={values.description} rows="4" className={`${inputClass} mt-1`} /></label>
+                        <label className="block text-xs font-semibold sm:col-span-2 lg:col-span-3">Ownership information<textarea name="ownership_information" defaultValue={values.ownership_information} rows="2" className={`${inputClass} mt-1`} /></label>
+                    </div>
+                </section>
+
+                <section className="rounded-xl border border-[var(--rr-border)] p-4 sm:p-5">
+                    <h3 className="font-semibold">Contact and online presence</h3>
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        <FormInput name="contact_name" label="Contact name" initial={values.contact_name} />
+                        <FormInput name="contact_email" label="Contact email" type="email" initial={values.contact_email} />
+                        <FormInput name="contact_phone" label="Contact phone" initial={values.contact_phone} />
+                        <FormInput name="alternate_phone" label="Alternate phone" initial={values.alternate_phone} />
+                        <FormInput name="website" label="Website" type="url" initial={values.website} />
+                    </div>
+                    <h4 className="mt-5 text-sm font-semibold">Social links</h4>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        <FormInput name="facebook_url" label="Facebook URL" type="url" initial={values.facebook_url} />
+                        <FormInput name="instagram_url" label="Instagram URL" type="url" initial={values.instagram_url} />
+                        <FormInput name="linkedin_url" label="LinkedIn URL" type="url" initial={values.linkedin_url} />
+                        <FormInput name="tiktok_url" label="TikTok URL" type="url" initial={values.tiktok_url} />
+                        <FormInput name="youtube_url" label="YouTube URL" type="url" initial={values.youtube_url} />
+                        <FormInput name="other_social_url" label="Other social URL" type="url" initial={values.other_social_url} />
+                    </div>
+                </section>
+
+                <section className="rounded-xl border border-[var(--rr-border)] p-4 sm:p-5">
+                    <h3 className="font-semibold">Location and services</h3>
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        <FormInput name="address_line_1" label="Address" initial={values.address_line_1} />
+                        <FormInput name="address_line_2" label="Address line 2" initial={values.address_line_2} />
+                        <FormInput name="city" label="City" initial={values.city} />
+                        <FormInput name="state" label="State" initial={values.state} />
+                        <FormInput name="postal_code" label="Postal code" initial={values.postal_code} />
+                        <FormInput name="country" label="Country (ISO code)" required initial={values.country} />
+                        <FormInput name="latitude" label="Latitude" type="number" initial={values.latitude} />
+                        <FormInput name="longitude" label="Longitude" type="number" initial={values.longitude} />
+                        <FormInput name="specialties" label="Specialties (comma separated)" initial={values.specialties} />
+                        <FormInput name="appointment_methods" label="Appointment methods (comma separated)" initial={values.appointment_methods} />
+                        <FormInput name="service_areas" label="Service areas (comma separated)" initial={values.service_areas} />
+                        <label className="block text-xs font-semibold sm:col-span-2 lg:col-span-3">Accessibility information<textarea name="accessibility_information" defaultValue={values.accessibility_information} rows="2" className={`${inputClass} mt-1`} /></label>
+                    </div>
+                </section>
+
+                <section className="rounded-xl border border-[var(--rr-border)] p-4 sm:p-5">
                     <h3 className="mb-2 text-sm font-semibold">Business hours</h3>
                     <div className="space-y-2">
                         {dayNames.map((dayName, day) => {
@@ -671,8 +734,9 @@ function BusinessEditor({ business, onCancel, onSave, requestJson, onReload }) {
                             </div>;
                         })}
                     </div>
-                </div>
-                <div className="sm:col-span-2 lg:col-span-3">
+                </section>
+
+                <section className="rounded-xl border border-[var(--rr-border)] p-4 sm:p-5">
                     <div className="mb-2 flex items-center justify-between"><h3 className="text-sm font-semibold">Profile highlights</h3><button type="button" className={secondaryButton} onClick={() => setHighlights((current) => [...current, { name: '', description: '', price_information: '', is_active: true }])}>Add highlight</button></div>
                     <div className="space-y-3">
                         {highlights.map((highlight, index) => <div key={highlight.id ?? `new-${index}`} className="grid gap-2 rounded-lg border border-[var(--rr-border)] p-3 sm:grid-cols-2">
@@ -682,13 +746,30 @@ function BusinessEditor({ business, onCancel, onSave, requestJson, onReload }) {
                             <button type="button" className="w-fit text-xs font-semibold text-[var(--rr-error)]" onClick={() => setHighlights((items) => items.filter((_, itemIndex) => itemIndex !== index))}>Remove highlight</button>
                         </div>)}
                     </div>
+                </section>
+
+                <section className="rounded-xl border border-[var(--rr-border)] p-4 sm:p-5">
+                    <h3 className="font-semibold">Directory and search settings</h3>
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                        <label className="block text-xs font-semibold">Directory visibility
+                            <select name="directory_visibility" defaultValue={values.directory_visibility} className={`${inputClass} mt-1`}>
+                                <option value="private">Private</option><option value="members">Members</option><option value="public">Public</option>
+                            </select>
+                        </label>
+                        <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="is_active" defaultChecked={values.is_active} className="min-h-5 min-w-5 accent-[var(--rr-primary)]" />Active business</label>
+                        <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="is_featured" defaultChecked={values.is_featured} className="min-h-5 min-w-5 accent-[var(--rr-primary)]" />Feature on the homepage</label>
+                        <FormInput name="meta_title" label="SEO title" initial={values.meta_title} />
+                        <label className="block text-xs font-semibold sm:col-span-2">SEO description<textarea name="meta_description" defaultValue={values.meta_description} rows="2" className={`${inputClass} mt-1`} /></label>
+                    </div>
+                </section>
+                <div className="flex flex-wrap justify-end gap-2">
+                    {business?.id && <a className={secondaryButton} target="_blank" rel="noreferrer" href={`/system/businesses/${business.id}/preview`}>Preview profile</a>}
+                    <button type="button" onClick={onCancel} className={secondaryButton}>Cancel</button>
+                    <button className={primaryButton}>{business ? 'Save profile details' : 'Create business'}</button>
                 </div>
-                <FormInput name="meta_title" label="SEO title" initial={values.meta_title} />
-                <label className="block text-xs font-semibold sm:col-span-2">SEO description<textarea name="meta_description" defaultValue={values.meta_description} rows="2" className={`${inputClass} mt-1`} /></label>
-                <div className="flex flex-wrap gap-2 sm:col-span-2 lg:col-span-3"><button className={primaryButton}>{business ? 'Save profile details' : 'Create business'}</button>{business?.id && <a className={secondaryButton} target="_blank" rel="noreferrer" href={`/super-admin/businesses/${business.id}/preview`}>Preview profile</a>}<button type="button" onClick={onCancel} className={secondaryButton}>Close editor</button></div>
             </form>
             {business?.id && <>
-                <div className="mt-7 border-t border-[var(--rr-border)] pt-6">
+                <section className="rounded-xl border border-[var(--rr-border)] p-4 sm:p-5">
                     <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-semibold">Business gallery</h3><p className="mt-1 text-xs text-[var(--rr-neutral-mid)]">{business.images?.length ?? 0} of 10 images · at least 2 images are required to publish.</p></div></div>
                     {mediaError && <div className="mt-3"><InlineError>{mediaError}</InlineError></div>}
                     {mediaNotice && <p role="status" className="mt-3 text-sm text-[var(--rr-accent)]">{mediaNotice}</p>}
@@ -711,8 +792,8 @@ function BusinessEditor({ business, onCancel, onSave, requestJson, onReload }) {
                         <label className="block text-xs font-semibold">Alt text for uploaded images<input name="alt_text" maxLength="255" className={`${inputClass} mt-1`} /></label>
                         <button className={primaryButton}>Upload images</button>
                     </form>
-                </div>
-                <div className="mt-7 border-t border-[var(--rr-border)] pt-6">
+                </section>
+                <section className="rounded-xl border border-[var(--rr-border)] p-4 sm:p-5">
                     <h3 className="font-semibold">Business video</h3>
                     {business.video?.video_url && <video controls src={business.video.video_url} className="mt-3 max-h-64 w-full rounded-lg bg-black" />}
                     {business.video?.source_type === 'youtube' && <p className="mt-2 break-all text-sm text-[var(--rr-neutral-mid)]">{business.video.source_url}</p>}
@@ -723,9 +804,11 @@ function BusinessEditor({ business, onCancel, onSave, requestJson, onReload }) {
                         {videoType === 'upload' && <label className="block text-xs font-semibold">Video file (MP4 or WebM, 10 MB max)<input name="video_file" type="file" accept="video/mp4,video/webm" className={`${inputClass} mt-1`} /></label>}
                         <div className="flex items-end gap-2"><button className={primaryButton}>Save video</button>{business.video && <button type="button" className={secondaryButton} onClick={removeVideo}>Remove video</button>}</div>
                     </form>
-                </div>
+                </section>
             </>}
-        </Panel>
+                </div>
+            </section>
+        </div>
     );
 }
 
@@ -733,7 +816,7 @@ function FormInput({ name, label, type = 'text', initial = '', required = false 
     return <label className="block text-xs font-semibold">{label}<input className={`${inputClass} mt-1`} type={type} name={name} defaultValue={initial} required={required} /></label>;
 }
 
-function Accounts({ url, requestJson, exportUrl, canManageSystemRoles, canManagePermissions, canWriteAccounts }) {
+function Accounts({ url, requestJson, exportUrl, accessRolesUrl, canManageSystemRoles, canManagePermissions, canWriteAccounts }) {
     const [searchInput, setSearchInput] = useState('');
     const [filters, setFilters] = useState({ search: '', account_type: '', page: 1 });
     const [exportError, setExportError] = useState('');
@@ -741,6 +824,7 @@ function Accounts({ url, requestJson, exportUrl, canManageSystemRoles, canManage
     const [editingAccount, setEditingAccount] = useState(null);
     const [saving, setSaving] = useState(false);
     const [editorError, setEditorError] = useState('');
+    const [roleManagerOpen, setRoleManagerOpen] = useState(false);
     const params = useMemo(() => new URLSearchParams(Object.entries(filters).filter(([, value]) => value !== '')), [filters]);
     const { loading, error, data, refresh } = useRemoteData(() => requestJson(`${url}?${params}`), [url, params, requestJson]);
 
@@ -770,8 +854,9 @@ function Accounts({ url, requestJson, exportUrl, canManageSystemRoles, canManage
     return (
         <>
             <div className="flex flex-wrap items-end justify-between gap-3">
-                <PageTitle eyebrow="Account management" title="Accounts" description="Manage Member, Administrator, and Super Administrator accounts. Only Super Administrators can change Administrator module permissions." />
+                <PageTitle eyebrow="Account management" title="Accounts" description="Manage Member, Administrator, and System Administrator accounts. Only the System Administrator can change Administrator module permissions." />
                 <div className="flex flex-wrap gap-2">
+                    {canManageSystemRoles && canWriteAccounts && <button type="button" className={secondaryButton} onClick={() => setRoleManagerOpen(true)}>Manage roles</button>}
                     {canWriteAccounts && <button type="button" className={primaryButton} onClick={() => openEditor()}>{canManageSystemRoles ? 'Create account' : 'Create Member account'}</button>}
                     <button type="button" className={secondaryButton} onClick={async () => {
                     try {
@@ -799,7 +884,7 @@ function Accounts({ url, requestJson, exportUrl, canManageSystemRoles, canManage
                 }} className="flex flex-col gap-3 sm:flex-row">
                     <label htmlFor="account-search" className="sr-only">Search accounts</label>
                     <input id="account-search" value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="Name or email address" className={`${inputClass} flex-1`} />
-                    <Select label="Role" value={filters.account_type} onChange={(value) => setFilters((current) => ({ ...current, account_type: value, page: 1 }))} options={[[UserType.regular, 'Member'], [UserType.administrator, 'Administrator'], [UserType.superAdmin, 'Super Administrator']]} />
+                    <Select label="Role" value={filters.account_type} onChange={(value) => setFilters((current) => ({ ...current, account_type: value, page: 1 }))} options={[[UserType.regular, 'Member'], [UserType.administrator, 'Administrator'], [UserType.superAdmin, 'System Administrator']]} />
                     <button type="submit" className={primaryButton}>Search</button>
                 </form>
             </Panel>
@@ -812,7 +897,7 @@ function Accounts({ url, requestJson, exportUrl, canManageSystemRoles, canManage
                                 <tbody className="divide-y divide-[var(--rr-border)]">
                                     {data.data.map((account) => <tr key={account.id}>
                                         <td className="py-4 pr-4"><p className="font-semibold">{account.name}</p><p className="mt-1 text-xs text-[var(--rr-neutral-mid)]">Account ID #{account.id} · {account.email}</p></td>
-                                        <td className="py-4 pr-4">{account.role}{!account.is_active && <span className="ml-2 text-xs text-[var(--rr-error)]">Inactive</span>}</td>
+                                        <td className="py-4 pr-4">{account.role}{account.access_role_name && <span className="ml-2 text-xs text-[var(--rr-neutral-mid)]">· {account.access_role_name}</span>}{!account.is_active && <span className="ml-2 text-xs text-[var(--rr-error)]">Inactive</span>}</td>
                                         <td className="py-4 pr-4">{account.businesses.length ? account.businesses.map((business) => `${business.name} (${business.role})`).join(', ') : 'No active business'}</td>
                                         <td className="py-4 text-[var(--rr-neutral-mid)]">{date(account.created_at)}</td>
                                         <td className="py-4 text-right">{canWriteAccounts && (canManageSystemRoles || account.role_key === 'member') && <button type="button" onClick={() => openEditor(account)} className={secondaryButton}>Edit</button>}</td>
@@ -830,12 +915,22 @@ function Accounts({ url, requestJson, exportUrl, canManageSystemRoles, canManage
                 businessOptions={data.business_options}
                 modules={data.modules}
                 memberModules={data.member_modules}
+                accessRoles={data.access_roles}
                 saving={saving}
                 error={editorError}
                 canManageSystemRoles={canManageSystemRoles}
                 canManagePermissions={canManagePermissions}
                 onSave={saveAccount}
                 onClose={() => setEditorOpen(false)}
+            />}
+            {roleManagerOpen && <AccessRoleManager
+                url={accessRolesUrl}
+                roles={data.access_roles}
+                modules={data.modules}
+                memberModules={data.member_modules}
+                requestJson={requestJson}
+                onChanged={refresh}
+                onClose={() => setRoleManagerOpen(false)}
             />}
         </>
     );

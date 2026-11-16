@@ -378,17 +378,17 @@ class DashboardSpaTest extends TestCase
 
     public function test_super_admin_routes_reject_guests_and_regular_accounts(): void
     {
-        $this->get('/super-admin')->assertRedirect(route('login'));
+        $this->get('/system')->assertRedirect(route('login'));
         $this->getJson(route('super-admin.overview'))->assertUnauthorized();
 
         $this->actingAs(User::factory()->create());
-        $this->get('/super-admin')->assertForbidden();
+        $this->get('/system')->assertForbidden();
         $this->getJson(route('super-admin.overview'))->assertForbidden();
         $this->getJson(route('super-admin.businesses.index'))->assertForbidden();
         $this->getJson(route('super-admin.accounts.index'))->assertForbidden();
 
         $this->actingAs(User::factory()->superAdmin()->create())
-            ->get('/super-admin')
+            ->get('/system')
             ->assertOk()
             ->assertViewIs('super-admin.index')
             ->assertSee('id="super-admin"', false)
@@ -524,6 +524,6 @@ class DashboardSpaTest extends TestCase
 
         $response = $this->getJson(route('super-admin.workspace', ['section' => 'reports']))->assertOk();
         $this->assertStringNotContainsString('file_path', $response->getContent());
-        $this->getJson('/super-admin/api/workspace/unknown')->assertNotFound();
+        $this->getJson('/system/api/workspace/unknown')->assertNotFound();
     }
 }

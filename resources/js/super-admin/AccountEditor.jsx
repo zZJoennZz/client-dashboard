@@ -32,7 +32,7 @@ function defaultPermissions(modules) {
 
 export default function AccountEditor({
     account, businessOptions, modules, memberModules, saving, error,
-    canManageSystemRoles, canManagePermissions, onSave, onClose,
+    accessRoles, canManageSystemRoles, canManagePermissions, onSave, onClose,
 }) {
     const [form, setForm] = useState(() => ({
         first_name: account?.first_name ?? '',
@@ -41,6 +41,7 @@ export default function AccountEditor({
         phone: account?.phone ?? '',
         job_title: account?.job_title ?? '',
         role: account?.role_key ?? 'member',
+        access_role_id: account?.access_role_id ?? '',
         business_roles: Object.fromEntries((account?.businesses ?? []).map((business) => [business.id, business.role])),
         password: '',
         password_confirmation: '',
@@ -55,6 +56,7 @@ export default function AccountEditor({
         setForm((current) => ({
             ...current,
             role,
+            access_role_id: '',
             business_roles: role === 'member' ? current.business_roles : {},
             permissions: role === 'administrator'
                 ? (current.role === 'administrator' ? current.permissions : defaultPermissions(modules))
@@ -64,21 +66,40 @@ export default function AccountEditor({
         }));
     }
 
+    function selectAccessRole(roleId) {
+        const selectedRole = accessRoles.find((role) => String(role.id) === roleId);
+        setForm((current) => ({
+            ...current,
+            access_role_id: roleId,
+            ...(selectedRole ? { permissions: selectedRole.permissions } : {}),
+        }));
+    }
+
     function toggleBusiness(businessId, selected) {
         setForm((current) => {
             const businessRoles = { ...current.business_roles };
             if (selected) businessRoles[businessId] = 'member';
             else delete businessRoles[businessId];
 
-            return { ...current, business_roles: businessRoles };
+            const hasBusinessAdministrator = Object.values(businessRoles).some((role) => ['owner', 'admin'].includes(role));
+            return {
+                ...current,
+                business_roles: businessRoles,
+                ...(!hasBusinessAdministrator ? { access_role_id: '' } : {}),
+            };
         });
     }
 
     function updateBusinessRole(businessId, role) {
-        setForm((current) => ({
-            ...current,
-            business_roles: { ...current.business_roles, [businessId]: role },
-        }));
+        setForm((current) => {
+            const business_roles = { ...current.business_roles, [businessId]: role };
+            const hasBusinessAdministrator = Object.values(business_roles).some((businessRole) => ['owner', 'admin'].includes(businessRole));
+            return {
+                ...current,
+                business_roles,
+                ...(!hasBusinessAdministrator ? { access_role_id: '' } : {}),
+            };
+        });
     }
 
     function updatePermission(module, ability, checked) {
@@ -108,6 +129,7 @@ export default function AccountEditor({
                         : [];
                     payload.business_ids = payload.business_roles.map(({ business_id }) => business_id);
                     if (!canManagePermissions || !['administrator', 'member'].includes(payload.role)) delete payload.permissions;
+                    if (!canManagePermissions) delete payload.access_role_id;
                     onSave(payload);
                 }} className="space-y-6 p-5 sm:p-7">
                     {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
@@ -128,13 +150,14 @@ export default function AccountEditor({
                             <input className={fieldClass} maxLength="120" value={form.job_title} onChange={(event) => setForm((current) => ({ ...current, job_title: event.target.value }))} />
                         </label>
                         <label className="text-sm font-semibold sm:col-span-2">Role
-                            <select className={fieldClass} value={form.role} onChange={(event) => changeRole(event.target.value)}>
-                                <option value="member">Member</option>
-                                {canManageSystemRoles && <>
-                                    <option value="administrator">Administrator</option>
-                                    <option value="super_administrator">Super Administrator</option>
-                                </>}
-                            </select>
+                            {form.role === 'system_administrator' ? (
+                                <input className={fieldClass} readOnly value="System Administrator" />
+                            ) : (
+                                <select className={fieldClass} value={form.role} onChange={(event) => changeRole(event.target.value)}>
+                                    <option value="member">Member</option>
+                                    {canManageSystemRoles && <option value="administrator">Administrator</option>}
+                                </select>
+                            )}
                         </label>
                     </div>
 
@@ -183,8 +206,16 @@ export default function AccountEditor({
                         <section className="rounded-xl border border-[var(--rr-border)] p-4">
                             <div className="mb-4">
                                 <h3 className="font-semibold">System backend module access</h3>
-                                <p className="mt-1 text-xs leading-5 text-[var(--rr-neutral-mid)]">This controls the Administrator's system backend access. Super Administrators manage these permissions.</p>
+                                <p className="mt-1 text-xs leading-5 text-[var(--rr-neutral-mid)]">This controls the Administrator's system backend access. The System Administrator manages these permissions.</p>
                             </div>
+                            <label className="mb-4 block text-sm font-semibold">Access preset
+                                <select className={fieldClass} value={form.access_role_id} onChange={(event) => selectAccessRole(event.target.value)}>
+                                    <option value="">No preset</option>
+                                    {accessRoles.filter((role) => role.applies_to === 'administrator').map((role) => (
+                                        <option key={role.id} value={role.id}>{role.name}</option>
+                                    ))}
+                                </select>
+                            </label>
                             <div className="overflow-x-auto">
                                 <table className="w-full min-w-[26rem] text-left text-sm">
                                     <thead className="text-xs uppercase tracking-wide text-[var(--rr-neutral-mid)]">
@@ -221,6 +252,14 @@ export default function AccountEditor({
                                     <h3 className="font-semibold">Member dashboard module access</h3>
                                     <p className="mt-1 text-xs leading-5 text-[var(--rr-neutral-mid)]">These permissions apply to this Member's business access. Member management is off by default.</p>
                                 </div>
+                                <label className="mb-4 block text-sm font-semibold">Access preset
+                                    <select className={fieldClass} value={form.access_role_id} onChange={(event) => selectAccessRole(event.target.value)}>
+                                        <option value="">No preset</option>
+                                        {accessRoles.filter((role) => role.applies_to === 'member').map((role) => (
+                                            <option key={role.id} value={role.id}>{role.name}</option>
+                                        ))}
+                                    </select>
+                                </label>
                                 <div className="overflow-x-auto">
                                     <table className="w-full min-w-[26rem] text-left text-sm">
                                         <thead className="text-xs uppercase tracking-wide text-[var(--rr-neutral-mid)]">

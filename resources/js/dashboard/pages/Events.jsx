@@ -235,7 +235,7 @@ export default function Events({ data, onRefresh }) {
 
             setMessage(eventBeingEdited
                 ? 'Event changes submitted for review. Members can RSVP again after approval.'
-                : 'Event submitted for review. Members can RSVP after a Super Administrator publishes it.');
+                : 'Event submitted for review. Members can RSVP after the System Administrator publishes it.');
             resetDraft();
             setSubmissionOpen(false);
             try {
@@ -469,8 +469,8 @@ export default function Events({ data, onRefresh }) {
                                 </h2>
                                 <p className="mt-2 max-w-2xl text-sm text-[var(--rr-neutral-mid)]">
                                     {editingEvent
-                                        ? 'Saving changes returns this event to draft until a Super Administrator approves it.'
-                                        : 'Choose one business for this event. It will remain a draft until a Super Administrator approves it.'}
+                                        ? 'Saving changes returns this event to draft until the System Administrator approves it.'
+                                        : 'Choose one business for this event. It will remain a draft until the System Administrator approves it.'}
                                 </p>
                             </div>
                             <button type="button" aria-label="Close event form" disabled={savingEvent} onClick={closeSubmission} className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-[var(--rr-border)] text-lg disabled:opacity-50">×</button>

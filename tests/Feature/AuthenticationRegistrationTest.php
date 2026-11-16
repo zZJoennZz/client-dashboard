@@ -8,6 +8,7 @@ use App\Models\User;
 use Database\Seeders\SuperAdminSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
+use InvalidArgumentException;
 use Tests\TestCase;
 
 class AuthenticationRegistrationTest extends TestCase
@@ -176,14 +177,14 @@ class AuthenticationRegistrationTest extends TestCase
         $this->get(route('dashboard'))->assertRedirect(route('login'));
     }
 
-    public function test_configured_super_admin_emails_are_promoted_by_the_seeder(): void
+    public function test_configured_system_administrator_email_is_promoted_by_the_seeder(): void
     {
         $admin = User::factory()->create(['email' => 'admin@example.com']);
         $regular = User::factory()->create(['email' => 'member@example.com']);
 
         config([
-            'accounts.super_admin_emails' => ['ADMIN@example.com', 'new-admin@example.com'],
-            'accounts.super_admin_initial_password' => 'pokemon14',
+            'accounts.system_admin_emails' => ['ADMIN@example.com'],
+            'accounts.system_admin_initial_password' => 'pokemon14',
         ]);
         $this->seed(SuperAdminSeeder::class);
 
@@ -191,13 +192,38 @@ class AuthenticationRegistrationTest extends TestCase
         $this->assertTrue(password_verify('pokemon14', $admin->fresh()->password));
         $this->assertFalse($regular->fresh()->isSuperAdmin());
 
-        $newAdmin = User::query()->where('email', 'new-admin@example.com')->firstOrFail();
-        $this->assertTrue($newAdmin->isSuperAdmin());
-        $this->assertTrue(password_verify('pokemon14', $newAdmin->password));
-        $this->assertNotNull($newAdmin->email_verified_at);
-        $this->assertSame('Super Admin', $newAdmin->profile->first_name);
+        $this->assertSame(1, User::query()->where('account_type', User::ACCOUNT_TYPE_SUPER_ADMIN)->count());
 
         $this->seed(SuperAdminSeeder::class);
-        $this->assertSame(2, User::query()->where('account_type', User::ACCOUNT_TYPE_SUPER_ADMIN)->count());
+        $this->assertSame(1, User::query()->where('account_type', User::ACCOUNT_TYPE_SUPER_ADMIN)->count());
+    }
+
+    public function test_system_administrator_seeder_creates_one_account_idempotently(): void
+    {
+        config([
+            'accounts.system_admin_emails' => ['system@example.com'],
+            'accounts.system_admin_initial_password' => 'system-password',
+        ]);
+
+        $this->seed(SuperAdminSeeder::class);
+        $this->seed(SuperAdminSeeder::class);
+
+        $systemAdministrator = User::query()->where('email', 'system@example.com')->firstOrFail();
+        $this->assertTrue($systemAdministrator->isSystemAdministrator());
+        $this->assertSame('System Administrator', $systemAdministrator->profile->first_name);
+        $this->assertTrue(password_verify('system-password', $systemAdministrator->password));
+        $this->assertSame(1, User::query()->where('account_type', User::ACCOUNT_TYPE_SUPER_ADMIN)->count());
+    }
+
+    public function test_system_administrator_seeder_rejects_multiple_configured_accounts(): void
+    {
+        config([
+            'accounts.system_admin_emails' => ['first@example.com', 'second@example.com'],
+            'accounts.system_admin_initial_password' => 'system-password',
+        ]);
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Configure only one System Administrator email address.');
+
+        $this->seed(SuperAdminSeeder::class);
     }
 }

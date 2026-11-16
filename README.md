@@ -32,7 +32,7 @@ The platform serves three audiences:
 |---|---|
 | **Public visitors** | Learn about the initiative, view pricing, sign up |
 | **Member businesses** | Access reports, schedules, resources, upsells, billing — their own data only |
-| **Super Admins** (platform owners) | Manage all businesses, upload reports, run events, fulfill orders, track impact |
+| **System Administrator** (platform owner) | Manage all businesses, accounts, roles, permissions, and platform settings |
 
 The frontend is split: **public pages are Blade templates**, while **portals (member + admin) are React dashboards** mounted into Blade via Vite. There is no separate SPA or Next.js app.
 
@@ -41,11 +41,11 @@ The frontend is split: **public pages are Blade templates**, while **portals (me
 ## Tech Stack
 
 ### Backend
-- **PHP** `^8.2`
+- **PHP** `^8.5.12`
 - **Laravel** `^12.0`
 - **Laravel Fortify** `^1.37` — authentication (Magic Link / email-based login)
 - **Laravel Sanctum** `^4.3` — API token auth for the React dashboards
-- **Spatie Laravel Permission** `^6.25` — role & permission management (`super_admin`, etc.)
+- **Spatie Laravel Permission** `^6.25` — application authorization support; access-role presets are managed in the system administration portal
 - **Spatie Laravel Activity Log** `^4.12` — audit trail for member activity tracking
 - **Barryvdh Laravel DomPDF** `^3.1` — PDF generation for reports
 - **Laravel Tinker** `^2.10` — REPL for debugging
@@ -91,7 +91,7 @@ The frontend is split: **public pages are Blade templates**, while **portals (me
 - **Billing** — view billing history, update payment method, cancel membership (via Stripe Customer Portal)
 - **Profile** — update business info, logo, contact details, social links
 
-### Super Admin Portal (React)
+### System Administration Portal (React)
 - **Dashboard** — key metrics (active businesses, MRR, upsells sold, engagement), charts, recent activity
 - **Businesses** — view/edit all member businesses, upload reports, view orders, manage status
 - **Reports** — upload monthly reports per business (single or bulk), draft → publish, version history
@@ -100,12 +100,13 @@ The frontend is split: **public pages are Blade templates**, while **portals (me
 - **Orders** — view all upsell purchases, mark fulfilled, filter by status
 - **Metrics** — manual entry for sales tax, marketing reach, engagement; export CSV
 - **Settings** — admin user management, branding guidelines, resource library
+- **Roles** — configurable permission presets for Administrators and Member business access
 
 ### Activity & Engagement Tracking
 - Automatic member activity logging (logins, report views/downloads, resource views/downloads)
 - Event registration and attendance tracking
 - Member dashboard shows recent activity and engagement summary (last 30 days)
-- Super Admin dashboard shows global activity feed and per-business engagement summaries
+- System Administrator dashboard shows global activity feed and per-business engagement summaries
 - Cross-business data isolation enforced at the query and authorization layer
 
 ---
@@ -158,7 +159,7 @@ php artisan migrate
 php artisan db:seed
 ```
 
-> The seeder creates a Super Admin account. Check `database/seeders/` for the default credentials (change them immediately in non-local environments).
+> The seeder creates one System Administrator account when `SYSTEM_ADMIN_EMAIL` is configured. Change the initial password immediately in non-local environments.
 
 ### 6. Build frontend assets
 
@@ -241,7 +242,7 @@ This is the recommended way. It starts the Laravel server, queue worker, log vie
 | `http://localhost:8000/login` | Member login (Magic Link) |
 | `http://localhost:8000/signup` | Member sign-up |
 | `http://localhost:8000/dashboard` | Member portal (after login) |
-| `http://localhost:8000/admin/dashboard` | Super Admin portal (after login as admin) |
+| `http://localhost:8000/system` | System administration portal (after login) |
 | `http://localhost:8000/telescope` | (If installed) Debugging |
 
 ---
@@ -303,7 +304,7 @@ php artisan test --coverage
 - Activity tracking (logins, report views, deduplication)
 - Event registration and attendance
 - Cross-business data isolation (member A cannot see member B's data)
-- Super Admin access and permissions
+- System Administrator access and permissions
 - Dashboard rendering and empty states
 - Existing registration and event workflows
 
@@ -311,40 +312,19 @@ php artisan test --coverage
 
 ## Roles & Permissions
 
-The platform uses **Spatie Laravel Permission** with two roles:
+The system has one **System Administrator** account and configurable access-role presets:
 
-### `super_admin`
-The platform owner/operator (The Argyle Buzz team).
-
-**Can:**
-- Read/write all businesses, reports, events, upsells, orders, metrics
-- Manage admin users
-- Access all `/admin/*` routes
-- View global activity and engagement summaries
-
-**Cannot:**
-- View or store raw card data
-- Impersonate members
-- Permanently delete business history (use archive/cancel)
-- Modify subscription prices outside Stripe
-
-### `member` (business user)
-A business owner or staff member with access to their own business's portal.
+### System Administrator
 
 **Can:**
-- View/download their own reports
-- View their own schedule and events
-- RSVP to events
-- Purchase upsells
-- Manage their own profile and billing
-- View their own activity summary
+- Manage the platform, Administrator accounts, role presets, and module permissions
+- Access the `/system/*` administration portal
 
-**Cannot:**
-- Access another business's data
-- Access `/admin/*` routes
-- Modify platform settings
+The System Administrator can create named permission presets for Administrator backend modules or Member business dashboard modules. Selecting a preset applies its module permissions to an account; those permissions can be adjusted per account, and the selected preset remains attached to it.
 
-> Role management is in `database/seeders/RoleSeeder.php`. The `admins` table has a `role` column reserved for future admin tiers (e.g. `event_manager`, `billing_admin`).
+### Administrator and Member access
+
+Administrators receive configurable backend module access. Members may receive dashboard module access based on their business-level roles. The selected access preset is stored with the account.
 
 ---
 
@@ -404,7 +384,7 @@ php artisan db:seed --class=RoleSeeder
 - Magic link expiry: 15 minutes (configurable in `config/fortify.php`)
 
 ### PDF Generation (DomPDF)
-- Private uploads are stored under `storage/app/private` and served only through authenticated, authorized routes. Member-submitted private reports are available to their uploader, an administrator of the associated business, and backend Administrators or Super Administrators.
+- Private uploads are stored under `storage/app/private` and served only through authenticated, authorized routes. Member-submitted private reports are available to their uploader, an administrator of the associated business, and backend Administrators or the System Administrator.
 - Public site assets belong under `storage/app/public`; run `php artisan storage:link` to expose them at `/storage`. Keep private uploads out of this directory.
 - Published resources and reports continue to use their configured visibility rules.
 

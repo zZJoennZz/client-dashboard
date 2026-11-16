@@ -85,7 +85,7 @@ Route::middleware('auth')->group(function (): void {
 });
 
 Route::middleware(['auth', 'can:system-admin', 'system.module'])
-    ->prefix('super-admin')
+    ->prefix('system')
     ->name('super-admin.')
     ->group(function (): void {
         Route::get('/api/overview', [SuperAdminController::class, 'overview'])->name('overview');
@@ -141,6 +141,10 @@ Route::middleware(['auth', 'can:system-admin', 'system.module'])
         Route::get('/api/accounts', [SuperAdminController::class, 'accounts'])->name('accounts.index');
         Route::post('/api/accounts', [SuperAdminController::class, 'storeAccount'])->name('accounts.store');
         Route::put('/api/accounts/{user}', [SuperAdminController::class, 'updateAccount'])->name('accounts.update');
+        Route::get('/api/access-roles', [SuperAdminController::class, 'accessRoles'])->name('access-roles.index');
+        Route::post('/api/access-roles', [SuperAdminController::class, 'storeAccessRole'])->name('access-roles.store');
+        Route::put('/api/access-roles/{accessRole}', [SuperAdminController::class, 'updateAccessRole'])->name('access-roles.update');
+        Route::delete('/api/access-roles/{accessRole}', [SuperAdminController::class, 'deleteAccessRole'])->name('access-roles.destroy');
         Route::get('/api/workspace/{section}', [SuperAdminController::class, 'workspaceData'])
             ->whereIn('section', ['memberships', 'content', 'reports', 'events', 'marketing', 'orders', 'services', 'billing', 'analytics', 'audit'])
             ->name('workspace');

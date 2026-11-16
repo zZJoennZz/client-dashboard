@@ -38,10 +38,10 @@ class DashboardModulePermissionsTest extends TestCase
         $this->assertSame('member', collect($accounts)->firstWhere('id', $businessOwner->id)['role_key']);
         $this->assertSame('member', collect($accounts)->firstWhere('id', $businessMember->id)['role_key']);
 
-        $this->actingAs($administrator)->get('/super-admin')->assertOk();
-        $this->get('/dashboard')->assertRedirect('/super-admin');
+        $this->actingAs($administrator)->get('/system')->assertOk();
+        $this->get('/dashboard')->assertRedirect('/system');
         $this->getJson(route('dashboard.data'))->assertForbidden();
-        $this->actingAs($businessAdministrator)->get('/super-admin')->assertForbidden();
+        $this->actingAs($businessAdministrator)->get('/system')->assertForbidden();
     }
 
     public function test_super_administrator_can_restrict_backend_modules_for_administrator(): void
@@ -77,10 +77,10 @@ class DashboardModulePermissionsTest extends TestCase
         ]);
 
         $this->actingAs($administrator)
-            ->get('/super-admin')
-            ->assertRedirect('/super-admin/businesses');
+            ->get('/system')
+            ->assertRedirect('/system/businesses');
         $this->getJson(route('super-admin.overview'))->assertForbidden();
-        $this->get('/super-admin/reports')->assertOk();
+        $this->get('/system/reports')->assertOk();
         $this->getJson(route('super-admin.workspace', 'reports'))->assertOk();
         $this->getJson(route('super-admin.accounts.index'))->assertOk();
         $this->putJson(route('super-admin.accounts.update', $administrator), [])
@@ -136,6 +136,122 @@ class DashboardModulePermissionsTest extends TestCase
             'id' => $createdAdministrator['id'],
             'account_type' => User::ACCOUNT_TYPE_ADMINISTRATOR,
         ]);
+
+        $this->postJson(route('super-admin.accounts.store'), $this->accountData(User::factory()->make(), [
+            'first_name' => 'Second',
+            'email' => 'second-system-admin@example.test',
+            'role' => 'system_administrator',
+            'password' => 'admin-password',
+            'password_confirmation' => 'admin-password',
+        ]))->assertUnprocessable()
+            ->assertJsonValidationErrors('role');
+
+        $this->actingAs($administrator)->postJson(route('super-admin.access-roles.store'), [
+            'name' => 'Not allowed',
+            'applies_to' => 'administrator',
+            'permissions' => $permissions,
+        ])->assertForbidden();
+    }
+
+    public function test_super_administrator_can_delete_an_unassigned_access_role(): void
+    {
+        $systemAdministrator = User::factory()->superAdmin()->create();
+        $role = $this->actingAs($systemAdministrator)
+            ->postJson(route('super-admin.access-roles.store'), [
+                'name' => 'Temporary administrator role',
+                'applies_to' => 'administrator',
+                'permissions' => $this->systemPermissionMatrix(),
+            ])
+            ->assertCreated()
+            ->json('role');
+
+        $this->deleteJson(route('super-admin.access-roles.destroy', $role['id']))
+            ->assertNoContent();
+
+        $this->assertDatabaseMissing('access_roles', ['id' => $role['id']]);
+    }
+
+    public function test_access_role_presets_apply_to_administrator_and_member_permissions_and_remain_attached(): void
+    {
+        $systemAdministrator = User::factory()->superAdmin()->create();
+        $business = Business::factory()->create();
+        $administratorPermissions = array_fill_keys(User::SYSTEM_ADMIN_MODULES, ['read' => false, 'write' => false]);
+        $administratorPermissions['overview'] = ['read' => true, 'write' => false];
+        $memberPermissions = array_fill_keys(User::DASHBOARD_MODULES, ['read' => false, 'write' => false]);
+        $memberPermissions['business'] = ['read' => true, 'write' => false];
+
+        $administratorRole = $this->actingAs($systemAdministrator)
+            ->postJson(route('super-admin.access-roles.store'), [
+                'name' => 'Read-only operations',
+                'applies_to' => 'administrator',
+                'permissions' => $administratorPermissions,
+            ])
+            ->assertCreated()
+            ->json('role');
+
+        $administratorData = $this->accountData(User::factory()->make(), [
+            'first_name' => 'Preset',
+            'last_name' => 'Administrator',
+            'email' => 'preset-admin@example.test',
+            'role' => 'administrator',
+            'access_role_id' => $administratorRole['id'],
+            'password' => 'admin-password',
+            'password_confirmation' => 'admin-password',
+        ]);
+        unset($administratorData['permissions']);
+        $administrator = $this->postJson(route('super-admin.accounts.store'), $administratorData)
+            ->assertCreated()
+            ->assertJsonPath('account.access_role_id', $administratorRole['id'])
+            ->assertJsonPath('account.access_role_name', 'Read-only operations')
+            ->assertJsonPath('account.permissions.overview.read', true)
+            ->assertJsonPath('account.permissions.overview.write', false)
+            ->json('account');
+
+        $memberRole = $this->postJson(route('super-admin.access-roles.store'), [
+            'name' => 'Business viewer',
+            'applies_to' => 'member',
+            'permissions' => $memberPermissions,
+        ])->assertCreated()->json('role');
+        $memberData = $this->accountData(User::factory()->make(), [
+            'first_name' => 'Business',
+            'last_name' => 'Viewer',
+            'email' => 'business-viewer@example.test',
+            'role' => 'member',
+            'business_ids' => [$business->id],
+            'business_roles' => [['business_id' => $business->id, 'role' => 'admin']],
+            'access_role_id' => $memberRole['id'],
+            'password' => 'member-password',
+            'password_confirmation' => 'member-password',
+        ]);
+        unset($memberData['permissions']);
+        $member = $this->postJson(route('super-admin.accounts.store'), $memberData)
+            ->assertCreated()
+            ->assertJsonPath('account.access_role_id', $memberRole['id'])
+            ->assertJsonPath('account.access_role_name', 'Business viewer')
+            ->assertJsonPath('account.permissions.business.read', true)
+            ->assertJsonPath('account.permissions.business.write', false)
+            ->json('account');
+
+        $this->assertDatabaseHas('users', [
+            'id' => $administrator['id'],
+            'access_role_id' => $administratorRole['id'],
+        ]);
+        $this->assertDatabaseHas('users', [
+            'id' => $member['id'],
+            'access_role_id' => $memberRole['id'],
+        ]);
+        $this->assertDatabaseHas('dashboard_module_permissions', [
+            'user_id' => $administrator['id'],
+            'module' => 'system_overview',
+            'can_read' => true,
+            'can_write' => false,
+        ]);
+        $this->assertDatabaseHas('dashboard_module_permissions', [
+            'user_id' => $member['id'],
+            'module' => 'business',
+            'can_read' => true,
+            'can_write' => false,
+        ]);
     }
 
     public function test_member_business_administrator_permissions_remain_separate_from_backend_permissions(): void
@@ -176,7 +292,7 @@ class DashboardModulePermissionsTest extends TestCase
             ->assertJsonPath('can_write', false)
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.id', $businessMember->id);
-        $this->get('/super-admin')->assertForbidden();
+        $this->get('/system')->assertForbidden();
     }
 
     /**
