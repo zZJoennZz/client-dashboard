@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\AuditLog;
+use App\Models\AccessRole;
 use App\Models\Business;
 use App\Models\BusinessMetric;
 use App\Models\Event;
@@ -31,7 +32,7 @@ class SuperAdminController extends Controller
     {
         return view('super-admin.index', [
             'moduleAccess' => $request->user()->systemAdminModuleAccess(),
-            'roleLabel' => $request->user()->isSuperAdmin() ? 'Super Administrator' : 'Administrator',
+            'roleLabel' => $request->user()->isSuperAdmin() ? 'System Administrator' : 'Administrator',
             'canManageSystemRoles' => $request->user()->isSuperAdmin(),
         ]);
     }
@@ -405,7 +406,7 @@ class SuperAdminController extends Controller
             'page' => ['nullable', 'integer', 'min:1'],
         ]);
 
-        $query = User::query()->with(['profile', 'dashboardModulePermissions', 'businesses' => fn ($businesses) => $businesses
+        $query = User::query()->with(['profile', 'dashboardModulePermissions', 'accessRole', 'businesses' => fn ($businesses) => $businesses
             ->wherePivot('status', 'active')
             ->select('clients.id', 'company_name')]);
 
@@ -443,6 +444,8 @@ class SuperAdminController extends Controller
                 'account_type' => $user->account_type,
                 'role_key' => $this->accountRole($user),
                 'role' => $this->accountRoleLabel($user),
+                'access_role_id' => $user->access_role_id,
+                'access_role_name' => $user->accessRole?->name,
                 'is_active' => $user->is_active,
                 'created_at' => $user->created_at,
                 'businesses' => $user->businesses->map(fn (Business $business): array => [
@@ -461,6 +464,9 @@ class SuperAdminController extends Controller
             ],
             'modules' => User::SYSTEM_ADMIN_MODULES,
             'member_modules' => User::DASHBOARD_MODULES,
+            'access_roles' => $request->user()->isSuperAdmin()
+                ? AccessRole::query()->withCount('users')->orderBy('name')->get()
+                : [],
             'business_options' => Business::query()
                 ->whereNull('deleted_at')
                 ->orderBy('company_name')
@@ -478,6 +484,7 @@ class SuperAdminController extends Controller
                 'email' => $data['email'],
                 'password' => $data['password'],
                 'account_type' => $this->accountTypeForRole($data['role']),
+                'access_role_id' => $data['access_role_id'] ?? null,
                 'is_active' => true,
                 'email_verified_at' => now(),
             ]);
@@ -524,6 +531,9 @@ class SuperAdminController extends Controller
                 'email' => $data['email'],
                 'account_type' => $this->accountTypeForRole($data['role']),
             ];
+            if (array_key_exists('access_role_id', $data)) {
+                $attributes['access_role_id'] = $data['access_role_id'];
+            }
             if (! empty($data['password'])) {
                 $attributes['password'] = $data['password'];
             }
@@ -550,6 +560,50 @@ class SuperAdminController extends Controller
             'message' => 'Account updated.',
             'account' => $this->accountRecord($user->fresh()),
         ]);
+    }
+
+    public function accessRoles(Request $request): JsonResponse
+    {
+        abort_unless($request->user()->isSuperAdmin(), 403);
+
+        return response()->json([
+            'data' => AccessRole::query()->withCount('users')->orderBy('name')->get(),
+            'modules' => User::SYSTEM_ADMIN_MODULES,
+            'member_modules' => User::DASHBOARD_MODULES,
+        ]);
+    }
+
+    public function storeAccessRole(Request $request): JsonResponse
+    {
+        abort_unless($request->user()->isSuperAdmin(), 403);
+
+        $role = AccessRole::query()->create($this->validatedAccessRoleData($request));
+
+        return response()->json(['role' => $role], 201);
+    }
+
+    public function updateAccessRole(Request $request, AccessRole $accessRole): JsonResponse
+    {
+        abort_unless($request->user()->isSuperAdmin(), 403);
+
+        $accessRole->update($this->validatedAccessRoleData($request, $accessRole));
+
+        return response()->json(['role' => $accessRole->refresh()]);
+    }
+
+    public function deleteAccessRole(Request $request, AccessRole $accessRole): JsonResponse
+    {
+        abort_unless($request->user()->isSuperAdmin(), 403);
+
+        if ($accessRole->users()->exists()) {
+            throw ValidationException::withMessages([
+                'role' => 'A role assigned to accounts cannot be deleted.',
+            ]);
+        }
+
+        $accessRole->delete();
+
+        return response()->noContent();
     }
 
     public function workspaceData(Request $request, string $section): JsonResponse
@@ -587,6 +641,9 @@ class SuperAdminController extends Controller
                     'category' => $resource->category,
                     'resource_group' => $resource->resource_group,
                     'tags' => $resource->tags ?? [],
+                    'file_url' => $resource->file_url,
+                    'video_embed_url' => $resource->video_embed_url,
+                    'estimated_minutes' => $resource->estimated_minutes,
                     'status' => $resource->status,
                     'visibility' => $resource->visibility,
                     'is_featured' => $resource->is_featured,
@@ -927,7 +984,8 @@ class SuperAdminController extends Controller
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user?->id)],
             'phone' => ['nullable', 'string', 'max:40'],
             'job_title' => ['nullable', 'string', 'max:120'],
-            'role' => ['required', Rule::in(['member', 'administrator', 'super_administrator'])],
+            'role' => ['required', Rule::in(['member', 'administrator', 'system_administrator'])],
+            'access_role_id' => ['sometimes', 'nullable', 'integer', Rule::exists('access_roles', 'id')],
             'business_ids' => ['present', 'array', 'max:50'],
             'business_ids.*' => ['integer', 'distinct', Rule::exists('clients', 'id')],
             'business_roles' => ['sometimes', 'array', 'max:50'],
@@ -950,17 +1008,26 @@ class SuperAdminController extends Controller
             abort(403);
         }
 
+        if (array_key_exists('access_role_id', $data) && ! $request->user()->isSuperAdmin()) {
+            abort(403);
+        }
+
+        if ($data['role'] === 'system_administrator'
+            && (! $user?->isSuperAdmin() || $user->isNot($request->user()))) {
+            throw ValidationException::withMessages([
+                'role' => 'The System Administrator account already exists and cannot be reassigned.',
+            ]);
+        }
+        if ($user?->isSuperAdmin() && $data['role'] !== 'system_administrator') {
+            throw ValidationException::withMessages([
+                'role' => 'The System Administrator account cannot be changed to another account type.',
+            ]);
+        }
+
         if (isset($data['permissions']) && ! in_array($data['role'], ['administrator', 'member'], true)) {
             throw ValidationException::withMessages([
                 'permissions' => 'Module permissions cannot be set for this account type.',
             ]);
-        }
-
-        if (isset($data['permissions'])) {
-            $modules = $data['role'] === 'administrator'
-                ? User::SYSTEM_ADMIN_MODULES
-                : User::DASHBOARD_MODULES;
-            $this->validateModulePermissions($data['permissions'], $modules);
         }
 
         $businessRoles = $data['business_roles'] ?? array_map(
@@ -979,11 +1046,71 @@ class SuperAdminController extends Controller
 
         if ($data['role'] !== 'member' && $businessIds !== []) {
             throw ValidationException::withMessages([
-                'business_ids' => 'Administrator and Super Administrator accounts cannot be assigned to Member businesses.',
+                'business_ids' => 'Administrator accounts cannot be assigned to Member businesses.',
             ]);
         }
 
         $data['business_roles'] = $businessRoles;
+
+        if (! empty($data['access_role_id'])) {
+            $accessRole = AccessRole::query()->findOrFail($data['access_role_id']);
+            if ($accessRole->applies_to !== $data['role']) {
+                throw ValidationException::withMessages([
+                    'access_role_id' => 'Choose a role preset for this account type.',
+                ]);
+            }
+            if ($data['role'] === 'member' && ! collect($businessRoles)->contains(
+                fn (array $businessRole): bool => in_array($businessRole['role'], ['owner', 'admin'], true)
+            )) {
+                throw ValidationException::withMessages([
+                    'access_role_id' => 'Member access presets require an Administrator or Owner business role.',
+                ]);
+            }
+            $data['permissions'] ??= $accessRole->permissions;
+        }
+
+        if (isset($data['permissions'])) {
+            $modules = $data['role'] === 'administrator'
+                ? User::SYSTEM_ADMIN_MODULES
+                : User::DASHBOARD_MODULES;
+            $this->validateModulePermissions($data['permissions'], $modules);
+        }
+
+        return $data;
+    }
+
+    /**
+     * @return array{name: string, applies_to: string, permissions: array<string, array{read: bool, write: bool}>}
+     */
+    private function validatedAccessRoleData(Request $request, ?AccessRole $accessRole = null): array
+    {
+        $data = $request->validate([
+            'name' => [
+                'required',
+                'string',
+                'max:80',
+                Rule::unique('access_roles', 'name')
+                    ->where('applies_to', $request->input('applies_to'))
+                    ->ignore($accessRole?->id),
+            ],
+            'applies_to' => ['required', Rule::in(['administrator', 'member'])],
+            'permissions' => ['required', 'array'],
+            'permissions.*' => ['required', 'array'],
+            'permissions.*.read' => ['required', 'boolean'],
+            'permissions.*.write' => ['required', 'boolean'],
+        ]);
+
+        $this->validateModulePermissions(
+            $data['permissions'],
+            $data['applies_to'] === 'administrator' ? User::SYSTEM_ADMIN_MODULES : User::DASHBOARD_MODULES
+        );
+        if ($accessRole !== null
+            && $accessRole->applies_to !== $data['applies_to']
+            && $accessRole->users()->exists()) {
+            throw ValidationException::withMessages([
+                'applies_to' => 'A role assigned to accounts cannot change account type.',
+            ]);
+        }
 
         return $data;
     }
@@ -1070,7 +1197,7 @@ class SuperAdminController extends Controller
     private function clearModulePermissions(User $user, string $role): void
     {
         $modules = match ($role) {
-            'administrator', 'super_administrator' => array_map(
+            'administrator', 'system_administrator' => array_map(
                 fn (string $module): string => 'system_'.$module,
                 User::SYSTEM_ADMIN_MODULES
             ),
@@ -1109,7 +1236,7 @@ class SuperAdminController extends Controller
     private function accountRole(User $user): string
     {
         if ($user->isSuperAdmin()) {
-            return 'super_administrator';
+            return 'system_administrator';
         }
         if ($user->isAdministrator()) {
             return 'administrator';
@@ -1121,7 +1248,7 @@ class SuperAdminController extends Controller
     private function accountRoleLabel(User $user): string
     {
         return match ($this->accountRole($user)) {
-            'super_administrator' => 'Super Administrator',
+            'system_administrator' => 'System Administrator',
             'administrator' => 'Administrator',
             default => 'Member',
         };
@@ -1131,7 +1258,7 @@ class SuperAdminController extends Controller
     {
         return match ($role) {
             'administrator' => User::ACCOUNT_TYPE_ADMINISTRATOR,
-            'super_administrator' => User::ACCOUNT_TYPE_SUPER_ADMIN,
+            'system_administrator' => User::ACCOUNT_TYPE_SUPER_ADMIN,
             default => User::ACCOUNT_TYPE_REGULAR,
         };
     }
@@ -1169,6 +1296,7 @@ class SuperAdminController extends Controller
             'profile',
             'businesses' => fn ($businesses) => $businesses->wherePivot('status', 'active'),
             'dashboardModulePermissions',
+            'accessRole',
         ]);
         $role = $this->accountRole($user);
 
@@ -1183,6 +1311,8 @@ class SuperAdminController extends Controller
             'account_type' => $user->account_type,
             'role_key' => $role,
             'role' => $this->accountRoleLabel($user),
+            'access_role_id' => $user->access_role_id,
+            'access_role_name' => $user->accessRole?->name,
             'is_active' => $user->is_active,
             'businesses' => $user->businesses->map(fn (Business $business): array => [
                 'id' => $business->id,

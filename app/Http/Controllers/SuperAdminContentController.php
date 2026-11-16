@@ -26,7 +26,7 @@ class SuperAdminContentController extends Controller
     {
         $data = $this->resourceData($request, true);
         $resource = DB::transaction(function () use ($request, $data): Resource {
-            $resource = Resource::query()->create($this->resourceAttributes($request, $data) + [
+            $resource = Resource::query()->create($this->resourceAttributes($request, $data, true) + [
                 'created_by' => $request->user()->id,
             ]);
             $resource->versions()->create([
@@ -384,12 +384,14 @@ class SuperAdminContentController extends Controller
         ]);
     }
 
-    private function resourceAttributes(Request $request, array $data): array
+    private function resourceAttributes(Request $request, array $data, bool $creating = false): array
     {
         $attributes = collect($data)->except(['file'])->all();
         $attributes['category'] = $attributes['category'] ?? 'General';
         $attributes['resource_group'] = $attributes['resource_group'] ?? 'general';
-        $attributes['version'] = $attributes['version'] ?? 1;
+        if ($creating) {
+            $attributes['version'] = $attributes['version'] ?? 1;
+        }
         $attributes['requires_acknowledgment'] = $attributes['requires_acknowledgment'] ?? false;
         if ($request->hasFile('file')) {
             $file = $request->file('file');

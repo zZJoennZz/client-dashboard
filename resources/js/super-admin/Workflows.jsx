@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import SearchableBusinessSelect from '../components/SearchableBusinessSelect';
 
 const input = 'min-h-11 w-full rounded-lg border border-[var(--rr-border)] bg-white px-3 py-2 text-sm focus:border-[var(--rr-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--rr-primary)]/20';
@@ -100,6 +100,8 @@ export default function AdminWorkflows({ section, workspaceUrl, urls, exportUrl 
     const [notice, setNotice] = useState('');
     const [record, setRecord] = useState({});
     const [editingId, setEditingId] = useState(null);
+    const [resourceEditorOpen, setResourceEditorOpen] = useState(false);
+    const resourceEditorRef = useRef(null);
     const [preview, setPreview] = useState(null);
     const [registrations, setRegistrations] = useState(null);
     const [membershipDetails, setMembershipDetails] = useState(null);
@@ -158,8 +160,38 @@ export default function AdminWorkflows({ section, workspaceUrl, urls, exportUrl 
         if (schema.some(([key]) => key === 'is_featured')) values.is_featured = Boolean(row.is_featured ?? row.featured);
         if (schema.some(([key]) => key === 'requires_acknowledgment')) values.requires_acknowledgment = Boolean(row.requires_acknowledgment);
         setRecord(values);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        if (section === 'content') {
+            setResourceEditorOpen(true);
+        } else {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
     }
+
+    function closeResourceEditor() {
+        setResourceEditorOpen(false);
+        setEditingId(null);
+        setRecord({});
+        setError('');
+    }
+
+    useEffect(() => {
+        if (!resourceEditorOpen) return;
+
+        const previousFocus = document.activeElement;
+        const previousOverflow = document.body.style.overflow;
+        const handleKeyDown = (event) => {
+            if (event.key === 'Escape') closeResourceEditor();
+        };
+        document.body.style.overflow = 'hidden';
+        document.addEventListener('keydown', handleKeyDown);
+        resourceEditorRef.current?.focus();
+
+        return () => {
+            document.body.style.overflow = previousOverflow;
+            document.removeEventListener('keydown', handleKeyDown);
+            previousFocus?.focus?.();
+        };
+    }, [resourceEditorOpen]);
 
     async function submit(event) {
         event.preventDefault();
@@ -192,7 +224,8 @@ export default function AdminWorkflows({ section, workspaceUrl, urls, exportUrl 
         let url;
         let method;
         if (contentSection) {
-            url = editingId ? `${urls[section]}/${editingId}` : urls[section];
+            const resourceUrl = section === 'content' ? urls.resources : urls.reports;
+            url = editingId ? `${resourceUrl}/${editingId}` : resourceUrl;
             method = 'POST';
         } else if (isEvent) {
             url = editingId ? `${urls.events}/${editingId}` : urls.events;
@@ -216,6 +249,7 @@ export default function AdminWorkflows({ section, workspaceUrl, urls, exportUrl 
             setNotice(editingId ? 'Changes saved.' : 'Record created.');
             setRecord({});
             setEditingId(null);
+            if (section === 'content') setResourceEditorOpen(false);
             formElement.reset();
             await refresh();
         } catch (exception) {
@@ -318,10 +352,19 @@ export default function AdminWorkflows({ section, workspaceUrl, urls, exportUrl 
                 <h2 className="mt-2 text-2xl font-semibold">{title}</h2>
                 <p className="mt-2 text-sm leading-6 text-[var(--rr-neutral-mid)]">{explanation(section)}</p>
             </header>
-            {error && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</div>}
+            {error && !(section === 'content' && resourceEditorOpen) && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</div>}
             {notice && <div role="status" className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-900">{notice}</div>}
 
-            {(schema.length > 0 || communications) && <Panel title={editingId ? 'Edit record' : 'Create new record'}>
+            {section === 'content' && <div className="flex justify-end">
+                <button className={button} type="button" onClick={() => {
+                    setEditingId(null);
+                    setRecord({});
+                    setError('');
+                    setResourceEditorOpen(true);
+                }}>Add resource</button>
+            </div>}
+
+            {((schema.length > 0 && section !== 'content') || communications) && <Panel title={editingId ? 'Edit record' : 'Create new record'}>
                 <form key={editingId || 'new'} id={communications ? 'announcement-form' : undefined} onSubmit={submit} className="grid gap-3 sm:grid-cols-2">
                     {schema.map(([key, label, type, required, options]) => <Field key={key} name={key} label={label} type={type} required={required} options={options} businesses={data?.business_options ?? []} value={record[key]} onChange={(value) => setField(key, value)} />)}
                     {communications && <>
@@ -334,6 +377,36 @@ export default function AdminWorkflows({ section, workspaceUrl, urls, exportUrl 
                     {communications && <div className="flex flex-wrap items-center gap-2 sm:col-span-2"><button className={button} type="submit">{editingId ? 'Save draft' : 'Create draft'}</button><button className={secondary} type="button" onClick={previewRecipients}>Preview recipient count</button>{preview && <span className="text-sm">{preview.recipient_count} eligible recipients. Only opted-in members are included.</span>}</div>}
                 </form>
             </Panel>}
+
+            {section === 'content' && resourceEditorOpen && <div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="resource-editor-title"
+                ref={resourceEditorRef}
+                tabIndex={-1}
+                className="fixed inset-0 z-[70] overflow-y-auto bg-slate-950/50 p-4 sm:p-8"
+                onClick={closeResourceEditor}
+            >
+                <section className="mx-auto max-w-4xl rounded-2xl bg-white shadow-xl" onClick={(event) => event.stopPropagation()}>
+                    <header className="flex items-start justify-between gap-4 border-b border-[var(--rr-border)] px-5 py-4 sm:px-7">
+                        <div>
+                            <h3 id="resource-editor-title" className="text-lg font-semibold">{editingId ? 'Edit member resource' : 'Add member resource'}</h3>
+                            <p className="mt-1 text-sm text-[var(--rr-neutral-mid)]">Manage the resource details and publication settings.</p>
+                        </div>
+                        <button type="button" className={secondary} onClick={closeResourceEditor} aria-label="Close resource editor">Close</button>
+                    </header>
+                    <div className="p-5 sm:p-7">
+                        {error && <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</div>}
+                        <form key={editingId || 'new'} onSubmit={submit} className="grid gap-3 sm:grid-cols-2">
+                            {schema.map(([key, label, type, required, options]) => <Field key={key} name={key} label={label} type={type} required={required} options={options} businesses={data?.business_options ?? []} value={record[key]} onChange={(value) => setField(key, value)} />)}
+                            <div className="flex justify-end gap-2 sm:col-span-2">
+                                <button type="button" className={secondary} onClick={closeResourceEditor}>Cancel</button>
+                                <button className={button} type="submit">{editingId ? 'Save changes' : 'Create resource'}</button>
+                            </div>
+                        </form>
+                    </div>
+                </section>
+            </div>}
 
             <Panel title={`${data?.meta?.total ?? data?.data?.length ?? 0} records`}>
                 <div className="mb-4 flex flex-wrap items-end gap-3">

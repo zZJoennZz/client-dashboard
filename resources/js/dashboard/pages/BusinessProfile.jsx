@@ -131,7 +131,7 @@ export default function BusinessProfile({ data, onRefresh }) {
     if (data.user.is_super_admin) {
         return (
             <div>
-                <PageHeading eyebrow="Super Administrator" title="Business profiles">
+                <PageHeading eyebrow="System Administrator" title="Business profiles">
                     Business profile details and directory status across all businesses.
                 </PageHeading>
                 <Card>

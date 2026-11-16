@@ -134,7 +134,7 @@ function AccessRestricted({ navigate }) {
         <div role="alert" className="rounded-2xl border border-[var(--rr-border)] bg-white px-6 py-16 text-center">
             <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--rr-accent)]">Administrator access</p>
             <h2 className="mt-3 text-2xl font-semibold">You don't have access to this module.</h2>
-            <p className="mt-2 text-sm text-[var(--rr-neutral-mid)]">Ask a Super Administrator to review your module permissions.</p>
+            <p className="mt-2 text-sm text-[var(--rr-neutral-mid)]">Ask the System Administrator to review your module permissions.</p>
             <button onClick={() => navigate('/dashboard')} className="mt-6 min-h-11 rounded-lg bg-[var(--rr-primary)] px-5 py-2 text-sm font-semibold text-white hover:bg-[var(--rr-primary-light)]">
                 Return to overview
             </button>

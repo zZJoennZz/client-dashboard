@@ -14,6 +14,7 @@ if (root) {
                 engagementUrl={root.dataset.engagementUrl}
                 businessesUrl={root.dataset.businessesUrl}
                 accountsUrl={root.dataset.accountsUrl}
+                accessRolesUrl={root.dataset.accessRolesUrl}
                 workspaceUrl={root.dataset.workspaceUrl}
                 membershipsUrl={root.dataset.membershipsUrl}
                 resourcesUrl={root.dataset.resourcesUrl}

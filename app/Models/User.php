@@ -5,6 +5,7 @@ namespace App\Models;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -53,6 +54,15 @@ class User extends Authenticatable
 
     /** @use HasFactory<UserFactory> */
     use HasFactory, HasRoles, Notifiable;
+
+    protected static function booted(): void
+    {
+        static::saving(function (User $user): void {
+            $user->system_admin_slot = $user->account_type === self::ACCOUNT_TYPE_SUPER_ADMIN
+                ? 'system'
+                : null;
+        });
+    }
 
     /**
      * The attributes that are mass assignable.
@@ -237,6 +247,11 @@ class User extends Authenticatable
     public function dashboardModulePermissions(): HasMany
     {
         return $this->hasMany(DashboardModulePermission::class);
+    }
+
+    public function accessRole(): BelongsTo
+    {
+        return $this->belongsTo(AccessRole::class);
     }
 
     public function profile(): HasOne

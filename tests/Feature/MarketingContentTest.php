@@ -149,6 +149,9 @@ class MarketingContentTest extends TestCase
             'category' => 'Social Media',
             'tags' => ['Social Media', 'Promotion'],
             'content' => 'Original article copy.',
+            'file_url' => 'https://example.test/guide',
+            'video_embed_url' => 'https://www.youtube.com/embed/example',
+            'estimated_minutes' => 5,
             'business_id' => null,
             'status' => 'published',
             'visibility' => 'member',
@@ -162,6 +165,9 @@ class MarketingContentTest extends TestCase
             'category' => 'Social Media',
             'tags' => ['Social Media', 'Promotion'],
             'content' => 'Updated article copy.',
+            'file_url' => 'https://example.test/guide',
+            'video_embed_url' => 'https://www.youtube.com/embed/example',
+            'estimated_minutes' => 5,
             'business_id' => $business->id,
             'status' => 'published',
             'visibility' => 'member',
@@ -169,6 +175,33 @@ class MarketingContentTest extends TestCase
 
         $this->assertSame(2, $resource->fresh()->version);
         $this->assertSame(2, ResourceVersion::query()->where('resource_id', $resource->id)->count());
+        $this->assertSame('https://example.test/guide', $resource->fresh()->file_url);
+        $this->assertSame('https://www.youtube.com/embed/example', $resource->fresh()->video_embed_url);
+        $this->assertSame(5, $resource->fresh()->estimated_minutes);
+
+        $administrator = User::factory()->administrator()->create();
+        $this->actingAs($administrator)->putJson(route('super-admin.resources.update', $resource), [
+            'title' => 'Social media guide',
+            'resource_group' => 'how_to',
+            'resource_type' => 'article',
+            'category' => 'Social Media',
+            'tags' => ['Social Media', 'Promotion'],
+            'content' => 'Updated article copy again.',
+            'file_url' => 'https://example.test/guide',
+            'video_embed_url' => 'https://www.youtube.com/embed/example',
+            'estimated_minutes' => 5,
+            'business_id' => $business->id,
+            'status' => 'published',
+            'visibility' => 'member',
+        ])->assertOk();
+
+        $this->assertSame(3, $resource->fresh()->version);
+        $this->assertSame(3, ResourceVersion::query()->where('resource_id', $resource->id)->count());
+        $this->getJson(route('super-admin.workspace', 'content'))
+            ->assertOk()
+            ->assertJsonPath('data.0.file_url', 'https://example.test/guide')
+            ->assertJsonPath('data.0.video_embed_url', 'https://www.youtube.com/embed/example')
+            ->assertJsonPath('data.0.estimated_minutes', 5);
         $this->assertDatabaseHas('audit_logs', ['action' => 'resource.created']);
         $this->assertDatabaseHas('audit_logs', ['action' => 'resource.updated']);
     }
