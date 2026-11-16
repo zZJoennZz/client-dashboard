@@ -22,6 +22,7 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -591,7 +592,7 @@ class SuperAdminController extends Controller
         return response()->json(['role' => $accessRole->refresh()]);
     }
 
-    public function deleteAccessRole(Request $request, AccessRole $accessRole): JsonResponse
+    public function deleteAccessRole(Request $request, AccessRole $accessRole): Response
     {
         abort_unless($request->user()->isSuperAdmin(), 403);
 

@@ -153,6 +153,24 @@ class DashboardModulePermissionsTest extends TestCase
         ])->assertForbidden();
     }
 
+    public function test_super_administrator_can_delete_an_unassigned_access_role(): void
+    {
+        $systemAdministrator = User::factory()->superAdmin()->create();
+        $role = $this->actingAs($systemAdministrator)
+            ->postJson(route('super-admin.access-roles.store'), [
+                'name' => 'Temporary administrator role',
+                'applies_to' => 'administrator',
+                'permissions' => $this->systemPermissionMatrix(),
+            ])
+            ->assertCreated()
+            ->json('role');
+
+        $this->deleteJson(route('super-admin.access-roles.destroy', $role['id']))
+            ->assertNoContent();
+
+        $this->assertDatabaseMissing('access_roles', ['id' => $role['id']]);
+    }
+
     public function test_access_role_presets_apply_to_administrator_and_member_permissions_and_remain_attached(): void
     {
         $systemAdministrator = User::factory()->superAdmin()->create();

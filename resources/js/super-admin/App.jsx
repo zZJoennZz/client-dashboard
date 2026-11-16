@@ -37,13 +37,15 @@ function Definition({ label, value }) {
 
 async function requestJson(url, options = {}) {
     const formData = options.body instanceof FormData;
+    const method = String(options.method ?? 'GET').toUpperCase();
+    const requiresCsrf = !['GET', 'HEAD', 'OPTIONS'].includes(method);
     const response = await fetch(url, {
         ...options,
         credentials: 'same-origin',
         headers: {
             Accept: 'application/json',
             'X-Requested-With': 'XMLHttpRequest',
-            ...(options.body ? {
+            ...(requiresCsrf ? {
                 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? '',
             } : {}),
             ...(!formData && options.body ? { 'Content-Type': 'application/json' } : {}),
